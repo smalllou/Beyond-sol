@@ -1,0 +1,22 @@
+{
+  "name": "beyond-sol",
+  "version": "1.0.0",
+  "private": true,
+  "description": "流浪之地之外 · 一部《流浪地球》粉丝向的 three.js 实时交互宇宙旅程（非官方）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host --open",
+    "build": "vite build",
+    "preview": "vite preview --host --open",
+    "start": "vite --host --open",
+    "shots": "node tools/shots.mjs"
+  },
+  "dependencies": {
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "playwright": "^1.48.0"
+  },
+  "license": "MIT"
+}

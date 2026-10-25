@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>流浪之地之外 · Beyond Sol</title>
+  <link rel="stylesheet" href="./src/style.css" />
+</head>
+<body>
+  <canvas id="gl"></canvas>
+  <div id="hud" class="hud">
+    <!-- 顶栏 -->
+    <header class="topbar">
+      <div class="brand">流浪之地之外<span>BEYOND&nbsp;SOL</span></div>
+      <div class="readouts">
+        <div class="ro">
+          <label>船上时间 · UEG</label>
+          <b id="ro-clock">2078 · 00:00:00</b>
+        </div>
+        <div class="ro stage">
+          <label id="ro-stage-n">阶段 01 / 06</label>
+          <b id="ro-stage">THE WANDERING EARTH</b>
+          <div class="stage-ticks" id="stage-ticks"></div>
+        </div>
+        <div class="ro">
+          <label>MOSS 链路 · 日地光行</label>
+          <b><span id="ro-link">8.3 分</span><i class="bars" id="ro-bars"><s></s><s></s><s></s><s></s></i></b>
+        </div>
+      </div>
+      <nav class="modes">
+        <button id="btn-film" class="on" title="电影模式（空格 播放/暂停）">▶ 电影</button>
+        <button id="btn-explore" title="自由探索">✦ 探索</button>
+        <span class="sep"></span>
+        <button id="btn-audio" class="ico" title="声音（M）">♪</button>
+        <button id="btn-hud" class="ico" title="显示/隐藏仪表（H）">◐</button>
+        <button id="btn-full" class="ico" title="全屏"><svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M1 5V1h4M9 1h4v4M13 9v4H9M5 13H1V9"/></svg></button>
+      </nav>
+    </header>
+
+    <!-- 左：推进 -->
+    <section class="panel left" id="panel-left">
+      <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+      <div class="ph"><span>SYS-01</span><b>推进</b><em class="tag" id="tag-prop">STANDBY</em></div>
+      <div class="kv big"><label>推力输出</label><b><span id="v-thrust">0.0</span><small>%</small></b><p id="v-newton">0 N</p><div class="bar"><i id="b-thrust"></i></div></div>
+      <div class="kv"><label class="row">发动机阵列<span id="v-engines">0 / 10,000</span></label><div class="grid" id="eng-grid"></div></div>
+      <div class="kv"><label class="row">发动机共振<span id="v-res">0.00 Hz</span></label><canvas id="wave" width="320" height="56"></canvas></div>
+      <div class="pair">
+        <div class="kv"><label>等离子核心</label><b class="m" id="v-core">0</b><div class="bar warm"><i id="b-core"></i></div></div>
+        <div class="kv"><label>赤道转向</label><b class="m" id="v-steer">0 %</b><div class="bar"><i id="b-steer"></i></div></div>
+      </div>
+      <div class="pair">
+        <div class="kv"><label>地表均温</label><b class="m" id="v-temp">14 °C</b><div class="bar cold"><i id="b-temp"></i></div></div>
+        <div class="kv"><label>磁层强度</label><b class="m" id="v-mag">100 %</b><div class="bar"><i id="b-mag"></i></div></div>
+      </div>
+    </section>
+
+    <!-- 右：导航 -->
+    <section class="panel right" id="panel-right">
+      <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+      <div class="ph"><span>SYS-02</span><b>导航</b><em class="tag" id="tag-nav">PARKED</em></div>
+      <div class="kv big"><label class="row">速度<span id="v-frame">日心系</span></label><b><span id="v-vel">29.8</span><small id="v-velu">公里/秒</small></b></div>
+      <label class="row sub">航迹 · 对数刻度<span id="v-zone">内太阳系</span></label>
+      <canvas id="radar" width="300" height="200"></canvas>
+      <ul class="tele">
+        <li><label>距太阳</label><b id="t-dist">1.00 AU</b></li>
+        <li><label>光行时</label><b id="t-light">8.3 分</b></li>
+        <li><label>距半人马座 α</label><b id="t-acen">4.37 光年</b></li>
+        <li><label>预计抵达</label><b id="t-eta">公元 4578</b></li>
+        <li><label>航向（银道）</label><b id="t-head">l 315.7° b −0.7°</b></li>
+        <li><label>所在区域</label><b id="t-region">内太阳系 · 地球轨道</b></li>
+      </ul>
+      <div class="scale">
+        <label class="row">视野尺度<span id="t-range">8,000 km</span></label>
+        <div class="ruler"><i id="ruler-dot"></i></div>
+        <div class="ticks"><span>行星</span><span>1 AU</span><span>1 光年</span><span>银河</span></div>
+      </div>
+      <div class="log">
+        <label class="row">事件日志<span id="log-n">0 / 26</span></label>
+        <ol id="log"></ol>
+      </div>
+    </section>
+
+    <!-- 字幕 -->
+    <div class="subs" id="subs"><p class="zh" id="sub-zh"></p><p class="en" id="sub-en"></p></div>
+
+    <!-- 章节标题卡 -->
+    <div class="card" id="card">
+      <p class="k" id="card-k">CHAPTER 1</p>
+      <h1 id="card-t">THE WANDERING EARTH</h1>
+      <h2 id="card-z">流浪地球</h2>
+      <p class="s" id="card-s"></p>
+    </div>
+
+    <!-- 探索：目的地 -->
+    <aside class="dest" id="dest">
+      <div class="ph"><span>EXPLORE</span><b>目的地</b></div>
+      <ul id="dest-list"></ul>
+      <p class="hint">拖拽旋转 · 滚轮缩放 · 点击飞往</p>
+    </aside>
+
+    <!-- 底部章节条 -->
+    <footer class="timeline">
+      <button id="btn-play" class="play" title="播放/暂停">❚❚</button>
+      <div class="chapters" id="chapters"></div>
+      <div class="time" id="time">0:00 / 2:54</div>
+    </footer>
+
+    <div class="fan">粉丝概念 · 非官方 · 与《流浪地球》出品方无关</div>
+  </div>
+
+  <div id="fade"></div>
+  <div id="loader">
+    <div class="l-in">
+      <p class="l-t">流浪之地之外</p>
+      <p class="l-s">BEYOND SOL · 正在唤醒 MOSS</p>
+      <div class="l-bar"><i id="l-bar"></i></div>
+      <p class="l-p" id="l-p">0%</p>
+      <button id="l-go" class="go" hidden>▶ 开始旅程</button>
+      <p class="l-n">建议使用桌面版 Chrome / Edge，打开声音观看</p>
+    </div>
+  </div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

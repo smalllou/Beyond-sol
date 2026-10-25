@@ -1,0 +1,21 @@
+// 冒烟测试：加载页面、点击开始、切到探索模式并飞往一个目的地
+import { chromium } from 'playwright';
+import { createServer } from 'vite';
+const server = await createServer({ server: { port: 5198 }, logLevel: 'error' }); await server.listen();
+const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
+const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+p.on('pageerror', e => console.log('[pageerror]', e.message, e.stack.split('\n').slice(0,4).join(' | ')));
+p.on('console', m => { if (m.type() === 'error' || m.type() === 'warning') console.log('[' + m.type() + ']', m.text().slice(0, 300)); });
+await p.goto('http://localhost:5198/?dpr=1');
+await p.waitForFunction(() => window.__ready, null, { timeout: 240000 });
+await p.screenshot({ path: 'shots/smoke_loader.png' });
+await p.click('#l-go');
+await p.waitForTimeout(6000);
+await p.screenshot({ path: 'shots/smoke_play.png' });
+console.log('time label:', await p.textContent('#time'));
+await p.click('#btn-explore');
+await p.waitForTimeout(800);
+await p.click('#dest-list li:nth-child(5)');
+await p.waitForTimeout(4000);
+await p.screenshot({ path: 'shots/smoke_explore.png' });
+await b.close(); await server.close();
