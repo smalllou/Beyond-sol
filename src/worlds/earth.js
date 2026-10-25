@@ -68,6 +68,7 @@ export class EarthWorld {
     const land = landMask(tex.earth_spec.image);
     const heroV = lonlat(HERO.lon, HERO.lat);
     this.heroV = heroV;
+    const anchorV = lonlat(ANCHOR.lon, ANCHOR.lat);
     // 主发动机网络：背阳半球的陆地上
     const P = this.plumes = new Plumes(9000, { core: 0xf8f4ff, edge: 0x6a4dff, alt: 0x3f8dff, gain: 1.15, grow: 2.2 });
     let s = 11; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
@@ -80,6 +81,7 @@ export class EarthWorld {
       if (ang > 1.65 || ang < 0.2) continue;
       if (!land(lon, lat)) continue;
       if (Math.abs(lat) > 72) continue;
+      if (v.angleTo(anchorV) < 0.3) continue;   // 电梯平台周围约 17° 禁喷区
       const tilt = V(rnd() - .5, rnd() - .5, rnd() - .5).multiplyScalar(0.08);
       // 喷流向共同推力轴（重型阵列法线）倾斜，边缘发动机不再横喷
       const dir = v.clone().addScaledVector(heroV, 1.6).normalize().add(tilt).normalize();
@@ -107,10 +109,14 @@ export class EarthWorld {
     const SP = this.steerPlumes = new Plumes(200, { core: 0xf8f4ff, edge: 0x6a4dff, alt: 0x3f8dff, gain: 0.42, grow: 2.2 });
     for (let i = 0; i < 180; i++) {
       const lon = i * 2;
+      const len = 0.18 + rnd() * 0.06;
+      // 电梯锚点两侧留出禁喷区：喷流长约 10° 弧长，避免扫过赤道平台和缆索
+      const dl = ((lon - ANCHOR.lon) % 360 + 540) % 360 - 180;
+      if (Math.abs(dl) < 14) continue;
       const v = lonlat(lon, 0);
       const tan = V(0, 1, 0).cross(v).normalize();
       const dir = v.clone().multiplyScalar(0.55).add(tan.multiplyScalar(-0.85)).normalize();
-      SP.add(v.clone().multiplyScalar(1.006), dir, 0.18 + rnd() * 0.06, 0.006, 9 + (i % 30) * 0.12, 0.9);
+      SP.add(v.clone().multiplyScalar(1.006), dir, len, 0.006, 9 + (i % 30) * 0.12, 0.9);
     }
     SP.commit();
     this.earth.add(SP.mesh);
