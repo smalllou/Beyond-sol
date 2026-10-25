@@ -4,10 +4,10 @@ export const DURATION = 174;
 export const CHAPTERS = [
   { id: 1, t0: 0,   t1: 36,  en: 'THE WANDERING EARTH',     zh: '流浪地球',   card: null,                      years: '2078 · 1 AU' },
   { id: 2, t0: 36,  t1: 66,  en: 'THE SOLAR SYSTEM',        zh: '太阳系',     card: [36, 40.5],               years: '2079 — 2093 · 1 → 10 AU' },
-  { id: 3, t0: 66,  t1: 96,  en: 'BEYOND THE OUTER PLANETS', zh: '超越外行星', card: [66, 70.5],               years: '2101 — 2156 · 30 → 120 AU' },
-  { id: 4, t0: 96,  t1: 126, en: 'INTERSTELLAR VOYAGE',     zh: '星际航行',   card: [96, 100.5],              years: '2160 — 2580 · 0.002 → 1.6 LY' },
-  { id: 5, t0: 126, t1: 152, en: 'THE MILKY WAY',           zh: '银河系',     card: [126, 130.5],             years: 'ORION SPUR · 26,000 LY FROM THE CORE' },
-  { id: 6, t0: 152, t1: 174, en: 'A NEW SUN',               zh: '新太阳',     card: [152, 156.5],             years: '4578 · ALPHA CENTAURI · 4.37 LY' },
+  { id: 3, t0: 66,  t1: 96,  en: 'BEYOND THE OUTER PLANETS', zh: '超越外行星', card: [66, 70.5],               years: '2101 — 2178 · 30 → 120 AU' },
+  { id: 4, t0: 96,  t1: 126, en: 'INTERSTELLAR VOYAGE',     zh: '星际航行',   card: [96, 100.5],              years: '2178 — 2678 · ACCELERATION · 0 → 0.5% c' },
+  { id: 5, t0: 126, t1: 152, en: 'THE MILKY WAY',           zh: '银河系',     card: [126, 130.5],             years: '2678 — 3978 · COAST · ORION SPUR' },
+  { id: 6, t0: 152, t1: 174, en: 'A NEW SUN',               zh: '新太阳',     card: [152, 156.5],             years: '3978 — 4578 · PROXIMA CENTAURI · 4.3 LY' },
 ];
 
 export function chapterAt(t) {
@@ -17,7 +17,7 @@ export function chapterAt(t) {
 
 // 字幕：[开始, 结束, 中文, English]
 export const SUBS = [
-  [1.0, 8.6,  '太阳正在死去。一万台聚变发动机，把它的光变成我们离开的路。', 'The Sun is dying. Ten thousand fusion engines turn its light into our way out.'],
+  [1.0, 8.6,  '太阳正在死去。一万两千台聚变发动机，把它的光变成我们离开的路。', 'The Sun is dying. Twelve thousand fusion engines turn its light into our way out.'],
   [9.2, 14.8, '点火从背阳的半球开始，一台接一台，向整颗星球蔓延。', 'Ignition starts on the night side and spreads, engine by engine, across the world.'],
   [15.4, 23.6,'太空电梯：从赤道到地球同步轨道，三万六千公里。', 'The space elevator: 36,000 km from the equator to geostationary orbit.'],
   [24.2, 29.6,'天枢站：同步轨道上的港口，也是三百万人的家。', 'Tianshu Station: a harbour on the geostationary ring, and home to three million.'],
@@ -30,13 +30,13 @@ export const SUBS = [
   [76.6, 85.4,'柯伊伯带：冰、黑暗，和寂静。', 'The Kuiper belt: ice, darkness and silence.'],
   [86.0, 95.4,'一百二十个天文单位外，太阳风停了下来。我们越过日球层顶。', 'At 120 AU the solar wind stalls. We cross the heliopause.'],
   [101.0, 106.4,'星球前方，护航舰队安静地航行。', 'Ahead of the planet, the escort fleet sails on in silence.'],
-  [106.8, 115.6,'四个世纪。上百代人，在冰封的天空下出生。', 'Four centuries. A hundred generations born under frozen skies.'],
-  [116.0, 125.6,'前方，半人马座 α 一年比一年明亮。', 'Ahead, Alpha Centauri grows brighter every year.'],
+  [106.8, 115.6,'五百年的加速。二十代人，在冰封的天空下出生。', 'Five hundred years of acceleration. Twenty generations born under frozen skies.'],
+  [116.0, 125.6,'前方，比邻星一年比一年明亮。', 'Ahead, Proxima Centauri grows brighter every year.'],
   [131.0, 137.6,'退后一步，整段航程只是几光年长的一条细线。', 'Pull back, and the whole voyage is a line a few light-years long.'],
   [138.0, 144.6,'我们的邻居：猎户臂，一条由恒星与气体组成的小旋臂。', 'Our neighbourhood: the Orion Spur, a minor arm of stars and gas.'],
   [145.0, 151.6,'再往外，是四千亿颗太阳。银河系。', 'And beyond it, four hundred billion suns. The Milky Way.'],
   [157.0, 163.4,'离开二十五个世纪之后。', 'Twenty-five centuries after we left.'],
-  [164.0, 169.6,'半人马座 α。一颗新的太阳。', 'Alpha Centauri. A new sun.'],
+  [164.0, 169.6,'比邻星，4.3 光年。一颗新的太阳。', 'Proxima Centauri, 4.3 light-years away. A new sun.'],
 ];
 
 // 事件日志：[时间, T+标签, 文本, 警告?]
@@ -50,22 +50,24 @@ export const EVENTS = [
   [31.0, 'T+0:31', '领航员号 · 舰队编队完成'],
   [38.0, 'T+1:02', '时间压缩启动 · 1 年 : 3 秒'],
   [46.5, 'T+1:12', '日冕物质抛射 · 磁层护盾吸收', true],
-  [53.0, 'T+1:17', '木星引力弹射 · 近点 3.1×10⁵ km'],
+  [52.0, 'T+1:16', '全球发动机关闭 · 推力归零 · 惯性飞掠', true],
+  [53.0, 'T+1:17', '木星引力弹射 · 近点 1.5×10⁵ km'],
   [57.0, 'T+1:21', '洛希极限告警 · 已偏离', true],
+  [60.2, 'T+1:24', '飞离木星 · 全球发动机重新点火'],
   [61.0, 'T+1:25', '土星环面穿越 · 冰粒撞击可控'],
   [72.0, 'T+1:36', '海王星轨道 · 30 AU'],
   [78.0, 'T+1:42', '进入柯伊伯带 · 碎冰密度上升'],
   [88.0, 'T+1:52', '终端激波 · 太阳风降至亚声速'],
   [92.0, 'T+1:56', '越过日球层顶 · 进入星际介质'],
-  [102.0,'T+2:06', '巡航 · 推力 102.7%'],
-  [108.0,'T+2:12', '第 41 代 · 地下城运转正常'],
+  [102.0,'T+2:06', '加速段 · 推力 102.7%'],
+  [108.0,'T+2:12', '第 12 代 · 地下城运转正常'],
   [113.0,'T+2:17', '弓形激波稳定 · 星际介质 0.2 原子/cm³'],
-  [119.0,'T+2:23', '半人马座 α A · 视星等 −6.1'],
+  [119.0,'T+2:23', '导航锁定 · 比邻星 · 4.1 光年'],
   [132.0,'T+2:36', '远距巡天 · 本地泡'],
   [140.0,'T+2:44', '猎户臂 · 距银心 26,000 光年'],
   [147.0,'T+2:51', '银河全景 · 外侧晕视角'],
   [158.0,'T+3:02', '掉头 · 减速点火 · 全功率反推', true],
-  [165.0,'T+3:09', '捕获 · 进入半人马座 α 引力范围'],
+  [165.0,'T+3:09', '泊入轨道 · 进入比邻星引力范围'],
   [171.0,'T+3:15', '旅程结束 · 欢迎来到新家园'],
 ];
 
@@ -85,13 +87,15 @@ export function keyed(keys, t) {
 
 export const TELE = {
   // 推力 %
-  thrust: [[0, 0], [2, 4], [14, 62], [24, 100], [102, 102.7], [150, 96], [157, 40], [160, 104], [172, 70]],
-  engines: [[0, 0], [2, 25], [14, 6800], [22, 10000]],
+  thrust: [[0, 0], [2, 4], [14, 62], [24, 100], [51.4, 101], [52.4, 0], [59.6, 0], [61.6, 100], [102, 102.7], [150, 96], [157, 40], [160, 104], [172, 70]],
+  engines: [[0, 0], [2, 25], [14, 8160], [22, 12000], [51.4, 12000], [52.4, 0], [59.6, 0], [61.6, 12000]],
   // 速度：前四章 km/s，之后为 %c
-  vel: [[0, 29.8], [22, 30.6], [36, 31.4], [54, 38], [58, 52], [66, 50], [96, 62], [100, 0.2], [110, 0.5]],
+  // 第四章起为 %c：加速 500 年到 0.5%c（≈1,500 km/s），滑行 1300 年，第六章减速 500 年 + 泊入 100 年
+  vel: [[0, 29.8], [22, 30.6], [36, 31.4], [54, 38], [58, 52], [66, 50], [96, 62], [98, 0.02], [126, 0.5], [158, 0.5], [165, 0.004], [171, 0.0001]],
   // 距太阳（AU，对数插值）
-  logAU: [[0, 0], [36, 0.05], [45, 0.5], [55, 0.72], [64, 0.98], [72, 1.48], [86, 1.8], [96, 2.08], [104, 3.4], [126, 5.0], [152, 5.36], [160, 5.44]],
-  year: [[0, 2078], [36, 2079], [64, 2093], [66, 2101], [96, 2156], [100, 2160], [126, 2580], [152, 4300], [158, 4578], [174, 4578]],
+  logAU: [[0, 0], [36, 0.05], [45, 0.5], [55, 0.72], [64, 0.98], [72, 1.48], [86, 1.8], [96, 2.08], [104, 3.4], [126, 5.0], [152, 5.36], [165, 5.4345]],
+  // 2078 出发 · 2078–2178 逃逸太阳系 · 2178–2678 加速 · 2678–3978 滑行 · 3978–4478 减速 · 4478–4578 泊入轨道
+  year: [[0, 2078], [36, 2079], [64, 2093], [66, 2101], [96, 2178], [126, 2678], [152, 3978], [165, 4478], [171, 4578], [174, 4578]],
   temp: [[0, 14], [36, 6], [60, -38], [96, -66], [110, -76], [152, -78], [165, -72], [174, -40]],
   steer: [[0, 0], [10, 0], [16, 100], [100, 100], [104, 45], [174, 45]],
   mag: [[0, 100], [46, 100], [48, 86], [52, 98], [96, 92], [126, 82], [174, 88]],
@@ -109,7 +113,7 @@ export const REGIONS = [
   [88, '日球层顶', 'HELIOPAUSE'],
   [96, '星际介质 · 本地云', 'INTERSTELLAR'],
   [126, '本地泡 · 猎户臂', 'GALACTIC'],
-  [152, '半人马座 α 星系', 'ALPHA CEN'],
+  [152, '比邻星系 · 4.3 光年', 'PROXIMA'],
 ];
 
 export const TAGS = [
@@ -119,12 +123,13 @@ export const TAGS = [
   [24, 'FULL THRUST', 'DEPARTURE'],
   [38, 'CRUISE', 'TIME COMPRESS'],
   [46, 'SHIELD', 'TIME COMPRESS', true],
-  [52, 'CRUISE', 'GRAVITY ASSIST', false, true],
+  [52, 'ENGINES OFF', 'GRAVITY ASSIST', true, true],
+  [60, 'RE-IGNITION', 'GRAVITY ASSIST', true],
   [62, 'CRUISE', 'RING CROSSING'],
   [70, 'CRUISE', 'OUTER SYSTEM'],
   [86, 'CRUISE', 'HELIOPAUSE', false, true],
-  [100, 'CRUISE', 'INTERSTELLAR'],
-  [128, 'CRUISE', 'SURVEY'],
+  [100, 'ACCELERATE', 'INTERSTELLAR'],
+  [128, 'COAST', 'SURVEY'],
   [156, 'REVERSE BURN', 'CAPTURE', true, true],
   [168, 'TRIM', 'ARRIVAL'],
 ];

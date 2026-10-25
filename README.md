@@ -1,7 +1,7 @@
-# 流浪之地之外 · Beyond Sol
+# 再见，太阳系 · Beyond Sol
 
 一部向《流浪地球》致敬的 **three.js 实时交互宇宙旅程**（粉丝概念 · 非官方）。
-约 2 分 54 秒、六个章节：从一万台行星发动机点火，到穿越太阳系、日球层顶、星际空间，拉远到整个银河系，最后抵达半人马座 α 的新太阳。
+约 2 分 54 秒、六个章节：从一万两千台行星发动机点火，到穿越太阳系、日球层顶、星际空间，拉远到整个银河系，最后抵达比邻星（4.3 光年）的新太阳。
 
 画面全部实时渲染：GLSL 着色器 + 后期泛光，配乐由 Web Audio 实时合成，没有一帧预渲染视频。
 
@@ -21,7 +21,7 @@ npm run build      # 输出到 dist/
 npm run preview    # 本地预览打包结果
 ```
 
-> 推荐桌面版 Chrome / Edge，独立显卡体验最好。首次加载约 30 MB 贴图。
+> 推荐桌面版 Chrome / Edge，独立显卡体验最好。首次加载约 110 MB 贴图（8K 贴图走 KTX2；不支持 KTX2 或加 `?ktx2=0` 时约 30 MB）。
 
 ## 操作
 
@@ -46,7 +46,7 @@ npm run preview    # 本地预览打包结果
 | 02 | 太阳系 | 时间压缩下的太阳系俯瞰与地球外旋航迹；衰老的太阳（米粒组织、黑子、日珥、日冕物质抛射）；木星引力弹射；土星环 |
 | 03 | 超越外行星 | 海王星；柯伊伯带冰屑；越过日球层顶 |
 | 04 | 星际航行 | 冰封的地球与地下城灯网；赤道转向阵列；弓形激波与极光；巨型环形舰 |
-| 05 | 银河系 | 对数尺度连续拉远：太阳—半人马座 α 航线 → 本地泡 → 猎户臂 → 36 万粒子的棒旋银河 |
+| 05 | 银河系 | 对数尺度连续拉远：太阳—比邻星航线 → 本地泡 → 猎户臂 → 36 万粒子的棒旋银河 |
 | 06 | 新太阳 | 掉头反推减速，被新恒星照亮 |
 
 ## 结构
@@ -57,7 +57,8 @@ src/main.js             渲染器、后期（泛光 + 色差/暗角/颗粒）、
 src/story.js            剧本：章节、字幕、事件日志、遥测关键帧
 src/hud.js              仪表盘：推进 / 导航面板、雷达、波形、日志、章节条、标题卡
 src/audio.js            生成式配乐（Web Audio）
-src/assets.js           贴图加载
+src/assets.js           贴图加载（8K 贴图优先 KTX2，不支持时回退 JPG）
+src/data/near-stars.js  HYG 星表中 100 光年内的恒星（由 tools/near-stars.mjs 生成）
 src/worlds/earth.js     地球世界（1 单位 = 地球半径）：地球着色器、发动机网络、电梯、天枢站、舰队、行星飞掠、星际特效
 src/worlds/solar.js     太阳系世界（艺术化尺度 R = 6·r^0.6）
 src/worlds/galaxy.js    银河世界（1 单位 = 1 光年）
@@ -65,16 +66,36 @@ src/fx/plumes.js        等离子光柱：沿轴朝向相机的实例化条带�
 src/fx/kit.js           硬表面拼装建模（舰船、空间站、攀爬舱、桁架）
 src/fx/shaders.js       地球、云、大气、行星、光晕等着色器
 src/fx/space.js         银河天空、星点、速度流线、冰屑
-public/assets/          贴图与字体
-tools/                  开发工具：截图（shots.mjs）、冒烟测试（smoke.mjs）、中文字体子集化（subset_font.py）
+public/assets/          贴图（JPG + 8K 的 KTX2）、basis 转码器、字体
+tools/                  开发工具（全部 Node）：截图 shots.mjs、冒烟测试 smoke.mjs、字体子集化 subset-font.mjs、星表生成 near-stars.mjs
+tools/fonts/            完整的 Noto Sans SC 可变字重源文件（只供裁剪，不进打包产物）
 ```
 
-改字幕或台词后，运行 `python3 tools/subset_font.py`（需要 fonttools + brotli 和完整的 Noto Sans SC）重新生成中文字体子集，否则新字可能回退到系统字体。
+## 开发工具
+
+```bash
+npm run font                          # 改过中文文本后重新裁剪 HUD 字体（扫描 src/**/*.js 与 index.html）
+npm run smoke                         # 冒烟测试：开始播放、确认时间前进、三个世界的探索目的地全部飞一遍；出错时非 0 退出
+node tools/shots.mjs 55,90,160 1280 720   # 定格截图：时间点、宽、高
+node tools/near-stars.mjs             # 重新生成近邻星表（自动下载 HYG v4.4）
+```
+
+Playwright 启动失败时，先运行 `npx playwright install chromium`，再按提示安装系统依赖（`sudo npx playwright install-deps chromium`）。
+
+### 贴图压缩（KTX2）
+
+`earth_day`、`earth_night`、`earth_clouds`、`jupiter` 四张 8K 贴图另存为 KTX2（UASTC + Zstd，带 mipmap）。浏览器支持任何 GPU 压缩格式时用 KTX2，显存占用约为 JPG 解码后的 1/4–1/8；否则或加载失败时逐张回退 JPG。地址栏加 `?ktx2=0` 可强制 JPG。重新编码用 [basisu](https://github.com/BinomialLLC/basis_universal)：
+
+```bash
+basisu -uastc -uastc_level 2 -mipmap -y_flip -srgb   -ktx2 earth_day.jpg   # 颜色贴图（day / night / jupiter）
+basisu -uastc -uastc_level 2 -mipmap -y_flip -linear -ktx2 earth_clouds.jpg
+```
 
 ## 素材来源与授权
 
 - 行星、太阳、月球、地球昼/夜/云/法线/镜面贴图：Solar System Scope（solarsystemscope.com/textures），CC BY 4.0，经由 Wikimedia Commons 获取
 - 银河全景：ESO / S. Brunier，“The Milky Way panorama”，CC BY 4.0
+- 近邻恒星：HYG 星表 v4.4（David Nash / astronexus，codeberg.org/astronexus/hyg），CC BY-SA 4.0；src/data/near-stars.js 为其衍生数据，同样以 CC BY-SA 4.0 提供
 - 字体：Orbitron、Rajdhani、JetBrains Mono、Noto Sans SC（均为 SIL Open Font License 1.1）
 - 舰船、空间站、发动机、银河系全部为程序化生成；配乐为程序实时合成
 - 代码：MIT

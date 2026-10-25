@@ -37,6 +37,7 @@ export class HUD {
   setPlaying(p) { $('btn-play').textContent = p ? '❚❚' : '▶'; }
 
   update(t, clock, extra = {}) {
+    t = Math.max(0, Number.isFinite(t) ? t : 0);
     const ch = chapterAt(t);
     const T = (k) => keyed(TELE[k], t);
     // 顶栏
@@ -59,13 +60,14 @@ export class HUD {
     [...$('ro-bars').children].forEach((s, i) => s.className = i < bars ? '' : 'off');
 
     // 推进面板
-    const thrust = T('thrust') + Math.sin(clock * 3.1) * 0.25 * (t > 2 ? 1 : 0);
+    const thrustK = T('thrust');
+    const thrust = thrustK + Math.sin(clock * 3.1) * 0.25 * (t > 2 && thrustK > 1 ? 1 : 0);
     $('v-thrust').textContent = fmt(Math.max(0, thrust), 1);
     $('v-newton').textContent = `${fmt(1.5 * Math.max(thrust, 0) / 100 + 0.0001, 2)} × 10¹⁶ N`;
     $('b-thrust').style.width = `${Math.min(100, thrust)}%`;
     const eng = Math.round(T('engines'));
-    $('v-engines').textContent = `${eng.toLocaleString('en-US')} / 10,000`;
-    const lit = Math.round(eng / 100);
+    $('v-engines').textContent = `${eng.toLocaleString('en-US')} / 12,000`;
+    const lit = Math.round(eng / 120);   // 100 格，每格 120 台
     this.cells.forEach((c, i) => c.className = i < lit ? (this.hot.has(i) && t > 40 ? 'hot' : 'on') : '');
     const core = T('core');
     $('v-core').textContent = `${fmt(core, 2)} × 10⁸ K`;
@@ -83,15 +85,13 @@ export class HUD {
     // 导航面板
     const vel = T('vel');
     if (t < 98) { $('v-vel').textContent = fmt(vel, 1); $('v-velu').textContent = '公里/秒'; $('v-frame').textContent = '日心系'; }
-    else { const c = Math.min(0.5, vel); $('v-vel').textContent = fmt(c, 3); $('v-velu').textContent = '% c'; $('v-frame').textContent = `相对论 · γ ${fmt(1 / Math.sqrt(1 - Math.pow(c / 100, 2)), 4)}`; }
-    if (ch.id === 6) { const dv = 0.5 - Math.max(0, (t - 157)) * 0.03; $('v-vel').textContent = fmt(Math.max(0.004, dv), 3); }
+    else { const c = Math.min(0.5, Math.max(0, vel)); $('v-vel').textContent = fmt(c, c < 0.01 ? 4 : 3); $('v-velu').textContent = '% c'; $('v-frame').textContent = `≈ ${fmt(c / 100 * 299792, 0)} 公里/秒 · γ ${fmt(1 / Math.sqrt(1 - Math.pow(c / 100, 2)), 4)}`; }
     $('t-dist').textContent = au < 2000 ? `${fmt(au, au < 10 ? 2 : 1)} AU` : `${fmt(au / 63241, 3)} 光年`;
     $('t-light').textContent = link;
-    const ly = Math.max(0.0, 4.37 - au / 63241);
+    const ly = Math.max(0.0, 4.3 - au / 63241);
     $('t-acen').textContent = ch.id === 6 && t > 165 ? '0.0003 光年' : `${fmt(ly, 2)} 光年`;
-    $('t-eta').textContent = t < 100 ? '公元 43,6xx' : 'ETA 公元 4578';
-    if (t < 100) $('t-eta').textContent = `公元 ${fmt(43000 + 650 - t * 2.2, 0)}`;
-    const reg = REGIONS.filter(r => r[0] <= t).pop();
+    $('t-eta').textContent = '公元 4578';
+    const reg = REGIONS.filter(r => r[0] <= t).pop() || REGIONS[0];
     $('t-region').textContent = reg[1]; $('v-zone').textContent = reg[2];
     $('t-head').textContent = `l ${fmt(315.7 - t * 0.02, 1)}° b ${fmt(-0.7 + t * 0.003, 1)}°`;
     const range = extra.range || 8000;
@@ -99,7 +99,7 @@ export class HUD {
     const lr = Math.log10(Math.max(range, 1000));
     $('ruler-dot').style.left = `${Math.min(98, Math.max(0, (lr - 3) / (18 - 3) * 100))}%`;
     // 标签
-    const tag = TAGS.filter(r => r[0] <= t).pop();
+    const tag = TAGS.filter(r => r[0] <= t).pop() || TAGS[0];
     const tp = $('tag-prop'), tn = $('tag-nav');
     tp.textContent = tag[1]; tp.classList.toggle('warn', !!tag[3]);
     tn.textContent = tag[2]; tn.classList.toggle('warn', !!tag[4]);
@@ -129,7 +129,7 @@ export class HUD {
     const key = end ? 'end' : ch.id;
     if (on && this.cardChapter !== key) {
       this.cardChapter = key;
-      if (end) { $('card-k').textContent = 'FIN · 旅程结束'; $('card-t').textContent = 'BEYOND SOL'; $('card-z').textContent = '流浪之地之外'; $('card-s').textContent = '粉丝概念 · 非官方 · 向《流浪地球》致敬'; }
+      if (end) { $('card-k').textContent = 'FIN · 旅程结束'; $('card-t').textContent = 'BEYOND SOL'; $('card-z').textContent = '再见，太阳系'; $('card-s').textContent = '粉丝概念 · 非官方 · 向《流浪地球》致敬'; }
       else { $('card-k').textContent = `CHAPTER ${ch.id}`; $('card-t').textContent = ch.en; $('card-z').textContent = ch.zh; $('card-s').textContent = ch.years; }
     }
     card.classList.toggle('on', !!on);
@@ -178,9 +178,9 @@ export class HUD {
     const ex = cx + Math.cos(ang) * r, ey = cy + Math.sin(ang) * r;
     g.strokeStyle = 'rgba(200,220,255,.6)'; g.setLineDash([1, 3]); g.beginPath(); g.moveTo(cx, cy); g.lineTo(ex, ey); g.stroke(); g.setLineDash([]);
     g.fillStyle = '#e8f2ff'; g.beginPath(); g.arc(ex, ey, 2.4, 0, Math.PI * 2); g.fill();
-    // 半人马座 α
+    // 比邻星
     const ax = cx + Math.cos(ang) * 92, ay = cy + Math.sin(ang) * 92;
     g.strokeStyle = '#cfe0ff'; g.beginPath(); g.arc(Math.min(ax, W - 8), Math.min(ay, H - 8), 3, 0, Math.PI * 2); g.stroke();
-    g.fillStyle = '#9fb3cc'; g.fillText('A-CEN', Math.min(ax, W - 8) + 6, Math.min(ay, H - 8) + 3);
+    g.fillStyle = '#9fb3cc'; g.fillText('PROXIMA', Math.min(ax, W - 8) + 6, Math.min(ay, H - 8) + 3);
   }
 }

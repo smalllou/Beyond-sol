@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { glowSprite } from '../fx/shaders.js';
 import { skyDome, starPoints } from '../fx/space.js';
+import { NEAR_STARS, NEAR_NAMES } from '../data/near-stars.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const lerp = (a, b, u) => a + (b - a) * u;
@@ -147,10 +148,24 @@ export class GalaxyWorld {
     this.orionMat = pointsMat(); this.orionMat.uniforms.uScale.value = 45; this.orion = new THREE.Points(og, this.orionMat); this.orion.frustumCulled = false; S.add(this.orion);
 
     // —— 太阳邻域 ——
-    const NL = 6000, lp = new Float32Array(NL * 3), lc = new Float32Array(NL * 3), ls = new Float32Array(NL);
+    // 100 光年内：HYG 真实星表（位置、B−V 颜色、绝对星等）；100–400 光年：程序生成补足
+    // 银道坐标 → 世界坐标：X 指向银心（gcWorld 方向），Z（银北极）→ 世界 +Y，Y（银经 90°）= up × X
+    const gX = V(this.gcWorld.x, 0, this.gcWorld.z).normalize(), gY = V(gX.z, 0, -gX.x), gZ = V(0, 1, 0);
+    this.galToWorld = (x, y, z) => gX.clone().multiplyScalar(x).addScaledVector(gY, y).addScaledVector(gZ, z);
+    const NC = NEAR_STARS.length / 5, proxK = NEAR_NAMES['Proxima Centauri'];
+    const NP = 4000, NL = NC + NP, lp = new Float32Array(NL * 3), lc = new Float32Array(NL * 3), ls = new Float32Array(NL);
+    for (let i = 0; i < NC; i++) {
+      const o = i * 5, w = this.galToWorld(NEAR_STARS[o], NEAR_STARS[o + 1], NEAR_STARS[o + 2]);
+      lp.set([w.x, w.y, w.z], i * 3);
+      const [r, g, b] = bvToRGB(NEAR_STARS[o + 3]);
+      const lum = Math.pow(10, -0.4 * (NEAR_STARS[o + 4] - 4.83));        // 以太阳为 1 的光度
+      const k = Math.min(2.6, Math.max(0.22, 0.75 + 0.42 * Math.log10(lum)));
+      lc.set([r * k, g * k, b * k], i * 3);
+      ls[i] = i === proxK ? 0 : Math.min(2.4, Math.max(0.5, 0.9 + 0.3 * Math.log10(lum)));   // 比邻星单独用光晕画
+    }
     const tints = [[0.62, 0.74, 1.0], [0.9, 0.93, 1.0], [1, 0.95, 0.85], [1, 0.8, 0.6], [1, 0.62, 0.45]];
-    for (let i = 0; i < NL; i++) {
-      const r = 3 + Math.pow(rnd(), 0.5) * 400, th = rnd() * Math.PI * 2, ph = Math.acos(rnd() * 2 - 1);
+    for (let i = NC; i < NL; i++) {
+      const r = 100 + Math.pow(rnd(), 0.6) * 300, th = rnd() * Math.PI * 2, ph = Math.acos(rnd() * 2 - 1);
       lp.set([r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph) * 0.6, r * Math.sin(ph) * Math.sin(th)], i * 3);
       const t = tints[(rnd() * tints.length) | 0], b = 0.4 + Math.pow(rnd(), 3) * 2;
       lc.set([t[0] * b, t[1] * b, t[2] * b], i * 3); ls[i] = 0.6 + rnd() * 1.4;
@@ -159,10 +174,12 @@ export class GalaxyWorld {
     lg.setAttribute('position', new THREE.BufferAttribute(lp, 3)); lg.setAttribute('color', new THREE.BufferAttribute(lc, 3)); lg.setAttribute('size', new THREE.BufferAttribute(ls, 1));
     this.localMat = pointsMat(); this.localMat.uniforms.uMinPx.value = 1.5; this.localMat.uniforms.uMaxPx.value = 14;
     this.local = new THREE.Points(lg, this.localMat); this.local.frustumCulled = false; S.add(this.local);
-    // 太阳、半人马座 α、航线
+    // 太阳、比邻星、航线
     this.sun = glowSprite(new THREE.Color(2.4, 2.0, 1.4), 1.2, { power: 3, opacity: 1 }); S.add(this.sun);
-    this.acenPos = V(-2.9, -1.4, 2.9).normalize().multiplyScalar(4.37);
-    this.acen = glowSprite(new THREE.Color(2.2, 1.9, 1.4), 1.0, { power: 3, opacity: 1 }); this.acen.position.copy(this.acenPos); S.add(this.acen);
+    // 比邻星：星表里的真实方向，距离按剧本统一为 4.3 光年（星表值 4.24）
+    const pk = proxK * 5;
+    this.acenPos = this.galToWorld(NEAR_STARS[pk], NEAR_STARS[pk + 1], NEAR_STARS[pk + 2]).normalize().multiplyScalar(4.3);
+    this.acen = glowSprite(new THREE.Color(2.4, 1.3, 0.7), 1.0, { power: 3, opacity: 1 }); this.acen.position.copy(this.acenPos); S.add(this.acen);
     this.route = new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), this.acenPos]), new THREE.LineBasicMaterial({ color: new THREE.Color(1.6, 1.8, 2.4), transparent: true, opacity: 0.9 }));
     S.add(this.route);
     this.routeDash = new THREE.Line(new THREE.BufferGeometry().setFromPoints([this.acenPos, this.acenPos.clone().multiplyScalar(2.2)]), new THREE.LineDashedMaterial({ color: 0x8fa8cc, dashSize: 0.2, gapSize: 0.2, transparent: true, opacity: 0.5 }));
@@ -242,7 +259,7 @@ export class GalaxyWorld {
   destinations() {
     return [
       { name: '太阳 · 你在这里', en: 'SOL', get: () => ({ target: V(0, 0, 0), dist: 12 }) },
-      { name: '半人马座 α', en: 'ALPHA CEN', get: () => ({ target: this.acenPos.clone(), dist: 3 }) },
+      { name: '比邻星', en: 'PROXIMA', get: () => ({ target: this.acenPos.clone(), dist: 3 }) },
       { name: '本地泡', en: 'LOCAL BUBBLE', get: () => ({ target: V(0, 0, 0), dist: 900 }) },
       { name: '猎户臂', en: 'ORION SPUR', get: () => ({ target: V(0, 0, 0), dist: 9000 }) },
       { name: '银河系全景', en: 'MILKY WAY', get: () => ({ target: this.gcWorld.clone(), dist: 110000 }) },
@@ -251,3 +268,15 @@ export class GalaxyWorld {
   }
 }
 function renderer_px() { return Math.min(window.devicePixelRatio || 1, 1.5); }
+
+// B−V 色指数 → 近似 RGB（Ballesteros 2012 色温公式 + 简化黑体着色）
+function bvToRGB(bv) {
+  bv = Math.min(2.0, Math.max(-0.4, bv));
+  const T = 4600 * (1 / (0.92 * bv + 1.7) + 1 / (0.92 * bv + 0.62));
+  const t = T / 100;
+  let r, g, b;
+  if (t <= 66) { r = 255; g = 99.47 * Math.log(t) - 161.12; b = t <= 19 ? 0 : 138.52 * Math.log(t - 10) - 305.04; }
+  else { r = 329.7 * Math.pow(t - 60, -0.1332); g = 288.12 * Math.pow(t - 60, -0.0755); b = 255; }
+  const c = (v) => Math.min(255, Math.max(0, v)) / 255;
+  return [c(r), c(g), c(b)];
+}

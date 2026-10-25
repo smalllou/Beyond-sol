@@ -95,7 +95,7 @@ function applyShot(W, t) {
 }
 
 function seek(t) {
-  filmT = Math.max(0, Math.min(DURATION - 0.01, t));
+  filmT = Math.max(0, Math.min(DURATION - 0.01, Number.isFinite(t) ? t : 0));
   if (mode !== 'film') setMode('film');
 }
 function togglePlay() {
@@ -162,9 +162,11 @@ document.getElementById('btn-full').onclick = () => { document.fullscreenElement
 
 let last = performance.now();
 function frame(now) {
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  // rAF 的时间戳可能早于点击处理里记录的 performance.now()，dt 必须夹在 [0, 0.1]
+  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000)); last = Math.max(last, now);
   if (playing && mode === 'film') { filmT += dt; if (filmT >= DURATION) { filmT = DURATION - 0.01; playing = false; hud.setPlaying(false); } }
   if (!STILL) clock += dt;
+  filmT = Math.max(0, Math.min(DURATION - 0.01, Number.isFinite(filmT) ? filmT : 0));
   const t = filmT;
   const W = mode === 'explore' && explore ? explore.W : worldFor(t);
   if (W !== activeWorld) { activeWorld = W; }
@@ -219,3 +221,4 @@ async function boot() {
 }
 boot();
 window.__seek = (t) => { filmT = t; clock = t; frame(performance.now()); };
+window.__state = () => ({ t: filmT, playing, mode });
