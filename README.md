@@ -42,10 +42,10 @@ npm run preview    # 本地预览打包结果
 
 | # | 章节 | 内容 |
 | --- | --- | --- |
-| 01 | 流浪地球 | 点火从重型阵列开始向整个半球蔓延；太空电梯攀爬舱升到同步轨道；天枢站双环反向旋转；领航员号舰队 |
+| 01 | 流浪地球 | 点火从重型阵列开始向整个半球蔓延；加蓬外海的太空电梯全线贯通，攀爬舱升到同步轨道；天枢站双环反向旋转；领航员号舰队 |
 | 02 | 太阳系 | 时间压缩下的太阳系俯瞰与地球外旋航迹；衰老的太阳（米粒组织、黑子、日珥、日冕物质抛射）；木星引力弹射；土星环 |
 | 03 | 超越外行星 | 海王星；柯伊伯带冰屑；越过日球层顶 |
-| 04 | 星际航行 | 冰封的地球与地下城灯网；赤道转向阵列；弓形激波与极光；巨型环形舰 |
+| 04 | 星际航行 | 冰封的地球与地下城灯网；弓形激波与极光；渐亮的比邻星 |
 | 05 | 银河系 | 对数尺度连续拉远：太阳—比邻星航线 → 本地泡 → 猎户臂 → 36 万粒子的棒旋银河 |
 | 06 | 新太阳 | 掉头反推减速，被新恒星照亮 |
 
@@ -93,7 +93,7 @@ basisu -uastc -uastc_level 2 -mipmap -y_flip -linear -ktx2 earth_clouds.jpg
 
 ## 素材来源与授权
 
-- 行星、太阳、月球、地球昼/夜/云/法线/镜面贴图：Solar System Scope（solarsystemscope.com/textures），CC BY 4.0，经由 Wikimedia Commons 获取
+- 行星、太阳、地球昼/夜/云/法线/镜面贴图：Solar System Scope（solarsystemscope.com/textures），CC BY 4.0，经由 Wikimedia Commons 获取
 - 银河全景：ESO / S. Brunier，“The Milky Way panorama”，CC BY 4.0
 - 近邻恒星：HYG 星表 v4.4（David Nash / astronexus，codeberg.org/astronexus/hyg），CC BY-SA 4.0；src/data/near-stars.js 为其衍生数据，同样以 CC BY-SA 4.0 提供
 - 字体：Orbitron、Rajdhani、JetBrains Mono、Noto Sans SC（均为 SIL Open Font License 1.1）

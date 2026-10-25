@@ -217,7 +217,9 @@ export class SolarWorld {
     const au = this.earthAU(t);
     const R = artR(au);
     const pts = [];
-    const ang = (x) => 2.0 + (x < 36 ? 0 : (x - 36) * 0.38 - Math.pow(Math.max(0, x - 36) / 16, 1.6) * 3.2);
+    // 外旋螺线：角速度按开普勒定律随距离减慢（ω ∝ r^-1.5），1→10 AU 共约三圈，与 2079–2093 的十四年相称
+    const K = 1.5 * Math.LN10 / 16, W = 0.7 * Math.PI * 2 * (15 / 16);
+    const ang = (x) => 2.0 + (x < 36 ? 0 : W * (1 - Math.exp(-K * Math.min(x - 36, 16))) / K);
     for (let i = 0; i <= this.trailN; i++) { const x = 36 + (Math.max(t, 36) - 36) * i / this.trailN; const r = artR(this.earthAU(x)); const a = ang(x); pts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r)); }
     this.trail.geometry.setFromPoints(pts); this.trail.computeLineDistances();
     const a = ang(Math.max(t, 36));

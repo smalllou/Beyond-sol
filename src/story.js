@@ -18,9 +18,10 @@ export function chapterAt(t) {
 // 字幕：[开始, 结束, 中文, English]
 export const SUBS = [
   [1.0, 8.6,  '太阳正在死去。一万两千台聚变发动机，把它的光变成我们离开的路。', 'The Sun is dying. Twelve thousand fusion engines turn its light into our way out.'],
-  [9.2, 14.8, '点火从背阳的半球开始，一台接一台，向整颗星球蔓延。', 'Ignition starts on the night side and spreads, engine by engine, across the world.'],
+  [9.2, 12.2, '点火从背阳的半球开始，一台接一台，向整颗星球蔓延。', 'Ignition starts on the night side and spreads, engine by engine, across the world.'],
+  [12.6, 15.0,'联合政府公告：太空电梯全线贯通。', 'UEG Bulletin: the Space Elevator is fully operational.'],
   [15.4, 23.6,'太空电梯：从赤道到地球同步轨道，三万六千公里。', 'The space elevator: 36,000 km from the equator to geostationary orbit.'],
-  [24.2, 29.6,'天枢站：同步轨道上的港口，也是三百万人的家。', 'Tianshu Station: a harbour on the geostationary ring, and home to three million.'],
+  [24.2, 29.6,'天枢站：同步轨道上的港口，也是三百万人的家。', 'Tianshu Station: a harbour in geostationary orbit, and home to three million.'],
   [30.2, 35.6,'领航员号舰队在前方开路。我们带着整个世界出发。', 'The Navigator fleet clears the way ahead. We leave with the whole world on board.'],
   [41.0, 45.0,'一颗星球，驶出养育它的星系。', 'One planet, sailing out through the system that raised it.'],
   [45.4, 51.6,'在身后，太阳剧烈抽搐：耀斑、日珥与等离子风暴。', 'Behind us the Sun convulses — flares, loops and storms of plasma.'],
@@ -45,6 +46,7 @@ export const EVENTS = [
   [2.5,  'T+0:02', '点火 · 重型阵列 25 / 25 台点亮'],
   [6.0,  'T+0:06', '点火前沿推进 · 背阳半球'],
   [11.0, 'T+0:11', '赤道转向阵列 · 推力同步'],
+  [12.8, 'T+0:12', '联合政府公告 · 太空电梯全线贯通'],
   [16.0, 'T+0:16', '电梯攀爬舱 07 · 离开锚点'],
   [25.0, 'T+0:25', '天枢站 · 双环反向旋转 0.92 g'],
   [31.0, 'T+0:31', '领航员号 · 舰队编队完成'],
@@ -67,6 +69,7 @@ export const EVENTS = [
   [140.0,'T+2:44', '猎户臂 · 距银心 26,000 光年'],
   [147.0,'T+2:51', '银河全景 · 外侧晕视角'],
   [158.0,'T+3:02', '掉头 · 减速点火 · 全功率反推', true],
+  [160.0,'T+3:04', '赤道转向阵列重新点火 · 地球恢复自转'],
   [165.0,'T+3:09', '泊入轨道 · 进入比邻星引力范围'],
   [171.0,'T+3:15', '旅程结束 · 欢迎来到新家园'],
 ];
@@ -97,7 +100,7 @@ export const TELE = {
   // 2078 出发 · 2078–2178 逃逸太阳系 · 2178–2678 加速 · 2678–3978 滑行 · 3978–4478 减速 · 4478–4578 泊入轨道
   year: [[0, 2078], [36, 2079], [64, 2093], [66, 2101], [96, 2178], [126, 2678], [152, 3978], [165, 4478], [171, 4578], [174, 4578]],
   temp: [[0, 14], [36, 6], [60, -38], [96, -66], [110, -76], [152, -78], [165, -72], [174, -40]],
-  steer: [[0, 0], [10, 0], [16, 100], [100, 100], [104, 45], [174, 45]],
+  steer: [[0, 0], [10, 0], [16, 100], [33.5, 100], [36, 0], [157, 0], [160, 100], [174, 100]],
   mag: [[0, 100], [46, 100], [48, 86], [52, 98], [96, 92], [126, 82], [174, 88]],
   core: [[0, 0.5], [14, 6], [24, 9.4], [174, 9.5]],
   res: [[0, 0], [8, 7.2], [40, 7.6], [110, 8.25], [174, 8.1]],

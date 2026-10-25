@@ -119,7 +119,7 @@ export function streaks(n = 1400, { span = 30, len = 1.2, color = new THREE.Colo
 }
 
 // 冰屑 / 柯伊伯带碎块
-export function shards(n = 900, span = 40) {
+export function shards(n = 900, span = 40, { smin = 0.015, smax = 0.22 } = {}) {
   const geo = new THREE.IcosahedronGeometry(1, 1);
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) { const v = new THREE.Vector3().fromBufferAttribute(p, i); v.multiplyScalar(0.7 + Math.random() * 0.5); p.setXYZ(i, v.x, v.y * 0.8, v.z); }
@@ -130,7 +130,7 @@ export function shards(n = 900, span = 40) {
   for (let i = 0; i < n; i++) {
     m.userData.items.push({
       p: new THREE.Vector3((Math.random() - .5) * span, (Math.random() - .5) * span * 0.35, (Math.random() - .5) * span),
-      s: 0.015 + Math.pow(Math.random(), 4) * 0.22,
+      s: smin + Math.pow(Math.random(), 4) * smax,
       r: new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6),
       w: new THREE.Vector3(Math.random() - .5, Math.random() - .5, Math.random() - .5).multiplyScalar(0.6),
     });
@@ -140,14 +140,14 @@ export function shards(n = 900, span = 40) {
   return m;
 }
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _e = new THREE.Euler(), _v = new THREE.Vector3();
-export function updateShards(m, t, flow, keepOut = 1.25) {
+export function updateShards(m, t, flow, keepOut = 1.25, fade = 1) {
   const span = m.userData.span;
   m.userData.items.forEach((it, i) => {
     _v.copy(it.p).addScaledVector(flow, t);
     _v.x = ((_v.x + span / 2) % span + span) % span - span / 2;
     _v.y = ((_v.y + span * 0.175) % (span * 0.35) + span * 0.35) % (span * 0.35) - span * 0.175;
     _v.z = ((_v.z + span / 2) % span + span) % span - span / 2;
-    let sc = it.s;
+    let sc = it.s * fade;
     const d = _v.length(); if (d < keepOut) sc *= Math.max(0, (d - keepOut * 0.9) / (keepOut * 0.1));
     _e.set(it.r.x + it.w.x * t, it.r.y + it.w.y * t, it.r.z + it.w.z * t);
     _q.setFromEuler(_e); _s.setScalar(Math.max(sc, 0.0001));

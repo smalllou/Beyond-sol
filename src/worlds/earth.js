@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Plumes } from '../fx/plumes.js';
 import { earthMaterial, cloudMaterial, atmosphereMaterial, planetMaterial, glowSprite, NOISE } from '../fx/shaders.js';
 import { skyDome, starPoints, streaks, shards, updateShards } from '../fx/space.js';
-import { materials, buildFlagship, buildEscort, buildRingShip, buildTianshu, buildClimber, buildTruss } from '../fx/kit.js';
+import { materials, buildFlagship, buildEscort, buildTianshu, buildClimber, buildTruss } from '../fx/kit.js';
 import { keyed } from '../story.js';
 
 const D2R = Math.PI / 180;
@@ -13,7 +13,7 @@ const lerp = (a, b, u) => a + (b - a) * u;
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
 const HERO = { lon: 104, lat: 31 };       // 重型阵列（四川盆地附近）
-const ANCHOR = { lon: 103.8, lat: 0 };    // 电梯赤道锚点（新加坡以南海上平台）
+const ANCHOR = { lon: 9.45, lat: 0 };     // 电梯赤道锚点：《流浪地球2》加蓬利伯维尔外海赤道平台（约 9.45°E）
 const GEO = 6.62;
 
 function landMask(img) {
@@ -81,7 +81,8 @@ export class EarthWorld {
       if (!land(lon, lat)) continue;
       if (Math.abs(lat) > 72) continue;
       const tilt = V(rnd() - .5, rnd() - .5, rnd() - .5).multiplyScalar(0.08);
-      const dir = v.clone().add(tilt).normalize();
+      // 喷流向共同推力轴（重型阵列法线）倾斜，边缘发动机不再横喷
+      const dir = v.clone().addScaledVector(heroV, 1.6).normalize().add(tilt).normalize();
       const len = 0.16 + Math.pow(rnd(), 2.2) * 0.42;
       P.add(v.clone().multiplyScalar(1.004), dir, len, 0.0026 + rnd() * 0.0024, ang * 7.0 + rnd() * 1.2, rnd());
       if (rnd() < 0.08) bodies.push(v);
@@ -99,18 +100,21 @@ export class EarthWorld {
         P.add(p.clone().multiplyScalar(1.012), p.clone(), 0.75 + rnd() * 0.25, 0.011, rnd() * 0.6, 0.2);
       }
     }
-    // 赤道转向阵列：沿赤道一圈，喷流沿切向
-    this.steerStart = P.n;
+    P.commit();
+    this.earth.add(P.mesh);
+    P.mesh.renderOrder = 5;
+    // 赤道转向阵列：沿赤道一圈，喷流沿切向；单独一组，只在刹车（第一章）与重新起转（第六章）时工作
+    const SP = this.steerPlumes = new Plumes(200, { core: 0xf8f4ff, edge: 0x6a4dff, alt: 0x3f8dff, gain: 0.42, grow: 2.2 });
     for (let i = 0; i < 180; i++) {
       const lon = i * 2;
       const v = lonlat(lon, 0);
       const tan = V(0, 1, 0).cross(v).normalize();
       const dir = v.clone().multiplyScalar(0.55).add(tan.multiplyScalar(-0.85)).normalize();
-      P.add(v.clone().multiplyScalar(1.006), dir, 0.18 + rnd() * 0.06, 0.006, 9 + (i % 30) * 0.12, 0.9);
+      SP.add(v.clone().multiplyScalar(1.006), dir, 0.18 + rnd() * 0.06, 0.006, 9 + (i % 30) * 0.12, 0.9);
     }
-    P.commit();
-    this.earth.add(P.mesh);
-    P.mesh.renderOrder = 5;
+    SP.commit();
+    this.earth.add(SP.mesh);
+    SP.mesh.renderOrder = 5;
 
     // 发动机实体（只在近景可见）
     const tower = new THREE.LatheGeometry([
@@ -143,31 +147,26 @@ export class EarthWorld {
     this.earth.add(grp);
     this.elev = grp;
     const L = GEO - 1;
-    grp.add(buildTruss(this.mats, L, 0.010, 0.028));
+    this.elevL = L;
+    // 缆索（建造动画时沿 +Y 由下向上生长）
+    this.cable = new THREE.Group(); grp.add(this.cable);
+    this.cable.add(buildTruss(this.mats, L, 0.010, 0.028));
     // 远景可见的缆绳辉光
     const lineG = new THREE.CylinderGeometry(0.0012, 0.0012, L, 6, 1, true); lineG.translate(0, L / 2, 0);
-    grp.add(new THREE.Mesh(lineG, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 1.1, 1.6), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false })));
+    this.cableGlow = new THREE.MeshBasicMaterial({ color: new THREE.Color(0.9, 1.1, 1.6), transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false });
+    this.cableLine = new THREE.Mesh(lineG, this.cableGlow); this.cable.add(this.cableLine);
     // 锚点平台
     const base = new THREE.Group();
     const pf = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 0.006, 32), this.mats.hull); base.add(pf);
     const pr = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.0015, 8, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.5, 1.5, 0.6) })); pr.rotation.x = Math.PI / 2; base.add(pr);
     grp.add(base);
     // 中继站
-    for (const h of [0.6, 1.6, 3.0]) { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.025, 12), this.mats.hull); w.position.y = h; grp.add(w); }
+    this.relays = [0.6, 1.6, 3.0].map((h) => { const w = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.025, 12), this.mats.hull); w.position.y = h; grp.add(w); return w; });
     // 攀爬舱
     this.climber = buildClimber(this.mats); this.climber.scale.setScalar(0.18); grp.add(this.climber);
     this.climberLight = glowSprite(new THREE.Color(1.6, 1.4, 1.1), 0.05, { power: 3 }); grp.add(this.climberLight);
     // 天枢站
     this.station = buildTianshu(this.mats); this.station.scale.setScalar(0.32); this.station.position.y = L; grp.add(this.station);
-    // 同步轨道环（环绕整个地球）
-    const geoRing = new THREE.Mesh(new THREE.TorusGeometry(GEO, 0.004, 6, 720), new THREE.MeshStandardMaterial({ color: 0x9aa4b0, metalness: 0.6, roughness: 0.4, emissive: 0x1a2a44 }));
-    geoRing.rotation.x = Math.PI / 2; this.earth.add(geoRing);
-    const dots = new THREE.BufferGeometry(); const dp = [];
-    for (let i = 0; i < 1440; i++) { const t = i / 1440 * Math.PI * 2; dp.push(Math.cos(t) * GEO, 0.006, Math.sin(t) * GEO); }
-    dots.setAttribute('position', new THREE.Float32BufferAttribute(dp, 3));
-    this.geoDots = new THREE.Points(dots, new THREE.PointsMaterial({ color: new THREE.Color(1.6, 1.3, 0.9), size: 2, sizeAttenuation: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
-    this.earth.add(this.geoDots);
-    this.geoRing = geoRing;
   }
 
   _buildFleet() {
@@ -186,8 +185,6 @@ export class EarthWorld {
       add(e, V(-0.6 - rnd() * 3.5, (rnd() - .5) * 0.9, (rnd() - .5) * 1.8), 0.2 + rnd() * 0.15);
     }
     this.fleetPlumes.commit(); this.fleet.add(this.fleetPlumes.mesh);
-    // 舰队编队朝向：沿 +X 局部轴前进
-    this.ringShip = buildRingShip(this.mats); this.ringShip.scale.setScalar(0.9); this.ringShip.visible = false; this.scene.add(this.ringShip);
   }
 
   _buildPlanets(tex) {
@@ -195,13 +192,13 @@ export class EarthWorld {
     this.jupiter = mk(tex.jupiter, 11.2, { rim: new THREE.Color(0.8, 0.25, 0.12), rimGain: 0.35, grade: 1 });
     this.saturn = mk(tex.saturn, 9.4, { rim: new THREE.Color(0.9, 0.8, 0.6), rimGain: 0.3 });
     this.neptune = mk(tex.neptune, 3.9, { rim: new THREE.Color(0.4, 0.6, 1.2), rimGain: 0.8 });
-    this.moon = mk(tex.moon, 0.27, { rimGain: 0.0 });
+    for (const [m, g] of [[this.jupiter, 0.35], [this.saturn, 0.3], [this.neptune, 0.8]]) m.userData.rimGain = g;
     // 土星环
     const rg = new THREE.RingGeometry(1.24, 2.27, 256, 1);
     const pos = rg.attributes.position, uv = rg.attributes.uv;
     for (let i = 0; i < pos.count; i++) { const r = Math.hypot(pos.getX(i), pos.getY(i)); uv.setXY(i, (r - 1.24) / (2.27 - 1.24), 0.5); }
     this.ringMat = new THREE.ShaderMaterial({
-      uniforms: { uMap: { value: tex.saturn_ring }, uSun: { value: V(1, 0, 0) }, uSunInt: { value: 1 }, uC: { value: V() }, uR: { value: 9.4 } },
+      uniforms: { uMap: { value: tex.saturn_ring }, uSun: { value: V(1, 0, 0) }, uSunInt: { value: 1 }, uC: { value: V() }, uR: { value: 9.4 }, uOp: { value: 1 } },
       transparent: true, side: THREE.DoubleSide, depthWrite: false,
       vertexShader: /* glsl */`
         #include <common>
@@ -213,7 +210,7 @@ export class EarthWorld {
       fragmentShader: /* glsl */`
         #include <common>
         #include <logdepthbuf_pars_fragment>
-        uniform sampler2D uMap; uniform vec3 uSun, uC; uniform float uSunInt, uR; varying vec2 vUv; varying vec3 vW; varying vec3 vN;
+        uniform sampler2D uMap; uniform vec3 uSun, uC; uniform float uSunInt, uR, uOp; varying vec2 vUv; varying vec3 vW; varying vec3 vN;
         void main(){
           #include <logdepthbuf_fragment>
           vec4 c = texture2D(uMap, vec2(vUv.x, 0.5));
@@ -221,7 +218,7 @@ export class EarthWorld {
           vec3 toP = vW - uC; float along = dot(toP, -uSun); vec3 perp = toP + uSun * along;
           float sh = (along > 0.0 && length(perp) < uR) ? 0.08 : 1.0;
           float lit = 0.35 + 0.65 * abs(dot(normalize(vN), uSun));
-          gl_FragColor = vec4(c.rgb * 1.25 * lit * sh * uSunInt, c.a * 0.95);
+          gl_FragColor = vec4(c.rgb * 1.25 * lit * sh * uSunInt * uOp, c.a * 0.95 * uOp);
         }`,
     });
     this.rings = new THREE.Mesh(rg, this.ringMat); this.rings.scale.setScalar(9.4); this.rings.visible = false; this.scene.add(this.rings);
@@ -231,7 +228,7 @@ export class EarthWorld {
     // 速度流线
     this.streak = streaks(1600, { span: 26, len: 1.6, color: new THREE.Color(0.55, 0.72, 1.5) }); this.scene.add(this.streak);
     // 冰屑
-    this.shard = shards(1500, 14); this.shard.visible = false; this.scene.add(this.shard);
+    this.shard = shards(700, 30, { smin: 0.004, smax: 0.05 }); this.shard.visible = false; this.scene.add(this.shard);
     // 弓形激波
     const bg = new THREE.SphereGeometry(1, 96, 48, 0, Math.PI * 2, 0, Math.PI * 0.62);
     this.bowMat = new THREE.ShaderMaterial({
@@ -343,10 +340,18 @@ export class EarthWorld {
         return { pos: c, look: hero.clone().multiplyScalar(0.55).add(side(hero).multiplyScalar(-0.5)).add(V(0, 0.1, 0)), fov: 40 };
       }],
       // 02 重型阵列近景
-      [9.2, 15.2, (u) => {
+      [9.2, 12.4, (u) => {
         const T = side(hero), B = hero.clone().cross(T);
         const c = hero.clone().multiplyScalar(lerp(1.62, 1.5, u)).addScaledVector(T, lerp(-0.62, -0.5, u)).addScaledVector(B, lerp(-0.3, -0.2, u));
         return { pos: c, look: hero.clone().multiplyScalar(1.12).addScaledVector(T, 0.05), fov: 40, up: hero };
+      }],
+      // 02b 太空电梯全线贯通：赤道海上平台，缆索由下向上亮起，顶端天枢站组装
+      [12.4, 15.2, (u) => {
+        const T = side(anchor), B = anchor.clone().cross(T);
+        // 侧面宽景：地球边缘在画面下方，缆索从赤道平台向同步轨道生长
+        const k = sstep(0.15, 0.95, u);   // 机位随缆索生长上摇
+        const c = anchor.clone().multiplyScalar(lerp(1.5, 3.4, k)).addScaledVector(T, lerp(3.6, 4.6, k)).addScaledVector(B, 0.6);
+        return { pos: c, look: anchor.clone().multiplyScalar(lerp(1.9, 4.4, k)), fov: 55, up: anchor, climb: 0 };
       }],
       // 03 太空电梯攀升
       [15.2, 24.0, (u) => {
@@ -386,8 +391,8 @@ export class EarthWorld {
       [96.0, 106.6, (u) => orbit(V(lerp(4.4, 3.8, u), lerp(1.5, 1.1, u), lerp(2.4, 2.9, u)), lerp(5.4, 5.0, u), 40, V(0.1, 0.05, 0.05))],
       // 14 赤道发动机项链 + 弓形激波
       [106.6, 116.0, (u) => orbit(V(lerp(2.9, 2.5, u), lerp(0.5, 0.25, u), lerp(2.2, 2.0, u)), lerp(4.7, 4.4, u), 46)],
-      // 15 环形舰掠过
-      [116.0, 126.4, (u) => orbit(V(lerp(4.2, 3.6, u), lerp(0.4, 0.7, u), lerp(3.0, 3.4, u)), lerp(4.9, 4.6, u), 44)],
+      // 15 前方：弓形激波与渐亮的比邻星（地球边缘在画面下方）
+      [116.0, 126.4, (u) => newSun(lerp(3.1, 2.6, u), lerp(1.45, 1.25, u), lerp(0.55, 0.2, u), 0.11, 44)],
       // 17 新太阳：掉头减速
       [152.0, 164.0, (u) => newSun(lerp(2.6, 2.25, u), lerp(1.85, 1.6, u), lerp(0.35, 0.1, u), 0.13, 44)],
       // 18 抵达
@@ -412,14 +417,15 @@ export class EarthWorld {
     const heroW0 = this.heroV.clone().applyQuaternion(E.quaternion);
     const sideW = V(0, 1, 0).cross(heroW0).normalize();
     let sun = heroW0.clone().multiplyScalar(0.45).addScaledVector(sideW, 0.85).add(V(0, 0.25, 0)).normalize(), sunInt = 1.0, sunCol = new THREE.Color(1, 0.96, 0.9);
-    if (ch >= 2) { sun = V(0.55, 0.22, 0.8).normalize(); sunInt = keyed([[36, 1], [60, 0.75], [66, 0.5], [76, 0.28], [96, 0.16], [126, 0.08]], t); }
+    if (ch >= 2) { sun = V(0.55, 0.22, 0.8).normalize(); sunInt = keyed([[36, 1], [52, 0.62], [60, 0.45], [66, 0.36], [76, 0.24], [96, 0.14], [126, 0.08]], t); }   // 日面亮度随距离变暗
     if (ch === 6) {
       const k = sstep(152, 170, t);
       sun = V(-0.8, 0.26, 0.5).normalize();
       sunInt = lerp(0.1, 0.8, k);
       sunCol = new THREE.Color(lerp(0.8, 1.0, k), lerp(0.85, 0.66, k), lerp(1.0, 0.46, k));   // 比邻星偏红
     }
-    const freeze = keyed([[0, 0], [60, 0.15], [86, 0.55], [100, 1.0], [160, 1.0], [174, 0.86]], t);
+    // 冰封：离开地球轨道（36 秒）后开始结冰，木星飞掠时约八成，66 秒基本全冻
+    const freeze = keyed([[0, 0], [36, 0], [56, 0.8], [66, 1.0], [160, 1.0], [174, 0.86]], t);
     const mu = this.earthMat.uniforms;
     mu.uSun.value.copy(sun); mu.uSunInt.value = sunInt; mu.uSunCol.value.copy(sunCol);
     mu.uFreeze.value = freeze; mu.uTime.value = clock; mu.uCloudRot.value = clock * 0.0015;
@@ -427,7 +433,7 @@ export class EarthWorld {
     const heroW = this.heroV.clone().applyQuaternion(E.quaternion);
     mu.uGlowCenter.value.copy(heroW);
     const engOn = 1 - sstep(51.4, 52.4, t) + sstep(59.6, 61.6, t);
-    mu.uEngineGlow.value = (ch === 1 ? sstep(1, 12, t) * 1.1 : ch === 6 && t > 157 ? 0.9 : 0.5) * engOn;
+    mu.uEngineGlow.value = (ch === 1 ? sstep(1, 12, t) * 1.1 : ch === 6 && t > 157 ? 0.9 : 0.5) * (0.15 + 0.85 * engOn);   // 熄火时底座留一点微弱蓝光
     const cu = this.cloudMat.uniforms; cu.uSun.value.copy(sun); cu.uSunInt.value = sunInt; cu.uRot.value = clock * 0.0015; cu.uFreeze.value = freeze; cu.uSunCol.value.copy(sunCol);
     this.atmoMat.uniforms.uSun.value.copy(sun); this.atmoMat.uniforms.uSunInt.value = Math.max(sunInt, 0.25);
     this.atmoMat.uniforms.uCol.value.setRGB(lerp(0.28, 0.55, freeze), lerp(0.55, 0.7, freeze), 1.0);
@@ -445,18 +451,35 @@ export class EarthWorld {
     this.engineOn = on;
     P.uniforms.uGain.value = gain * on;
     P.uniforms.uLen.value = ch === 1 ? 1.0 : ch >= 4 ? 0.85 : 0.92;
-    this.heroGlow.material.uniforms.uOp.value = (ch === 1 ? sstep(1, 4, t) * 0.35 : 0.15) * on;
+    // 赤道转向阵列：第一章刹车（36 秒自转停止前收尾）、第六章 158 秒重新起转
+    const SP = this.steerPlumes, steerOn = ch === 1 ? 1 - sstep(33.5, 36, t) : ch === 6 ? sstep(157, 160, t) : 0;
+    SP.uniforms.uTime.value = clock; SP.uniforms.uIgnite.value = P.uniforms.uIgnite.value;
+    SP.uniforms.uGain.value = 0.42 * steerOn; SP.uniforms.uLen.value = P.uniforms.uLen.value;
+    SP.mesh.visible = steerOn > 0.001;
+    this.heroGlow.material.uniforms.uOp.value = (ch === 1 ? sstep(1, 4, t) * 0.35 : 0.15) * (0.2 + 0.8 * on);
     this.heroRing.material.opacity = (ch === 1 ? 0.9 : 0.4) * (0.25 + 0.75 * on);
     this.plumeLight.position.copy(heroW.clone().multiplyScalar(1.2));
     this.plumeLight.intensity = (ch === 1 ? 2.5 * sstep(1, 6, t) : 0.6) * on;
 
-    // 电梯：攀爬舱
+    // 电梯：12.4 秒前不存在；12.4–15.2 秒建造（缆索由下向上生长，顶端天枢站组装）；之后全程保留，深空段结霜变暗
+    const L = this.elevL;
+    const build = sstep(12.6, 14.6, t);
+    this.elev.visible = t >= 12.4;
+    this.cable.scale.y = Math.max(build, 0.001);
+    this.relays.forEach((w) => { w.visible = build * L >= w.position.y; });
+    const st = sstep(14.0, 15.0, t);
+    this.station.visible = st > 0.001; this.station.scale.setScalar(0.32 * (0.6 + 0.4 * st));
     const sh = this.shot(t);
-    const climb = sh && sh.climb !== undefined ? sh.climb : 2.2 + Math.sin(clock * 0.05) * 1.5;
+    const deep = ch >= 3 && ch <= 5;
+    const building = t < 15.2;
+    const climb = building ? build * L : sh && sh.climb !== undefined ? sh.climb : deep ? 2.2 : 2.2 + Math.sin(clock * 0.05) * 1.5;
+    this.climber.visible = !building;
     this.climber.position.y = climb; this.climberLight.position.y = climb + 0.02;
-    this.station.userData.rings[0].rotation.y = clock * 0.25; this.station.userData.rings[1].rotation.y = -clock * 0.25;
-    const showElev = ch <= 2 || ch === 6;
-    this.elev.visible = showElev; this.geoRing.visible = showElev; this.geoDots.visible = showElev;
+    const fs = building ? lerp(0.32, 0.05, st) : 0.05; this.climberLight.scale.set(fs, fs, 1);
+    const lw = building ? 5 : 1; this.cableLine.scale.set(lw, 1, lw);
+    this.climberLight.material.uniforms.uOp.value = building ? (build > 0.001 ? 1 - st * 0.6 : 0) : deep ? 0.15 : 1;
+    this.cableGlow.opacity = 0.55 * (1 - 0.7 * Math.max(0, freeze - 0.5) * 2);
+    if (!deep) { this.station.userData.rings[0].rotation.y = clock * 0.25; this.station.userData.rings[1].rotation.y = -clock * 0.25; }
 
     // 舰队：位于前进方向（世界 -X 偏前）
     const fleetOn = (t >= 28 && t < 37) || (t >= 96 && t < 126);
@@ -465,46 +488,45 @@ export class EarthWorld {
     if (t >= 96) this.fleet.position.set(1.3, 1.05, 1.0);
     this.fleetPlumes.uniforms.uTime.value = clock; this.fleetPlumes.uniforms.uIgnite.value = 1e5;
     this.fleet.children.forEach((c, i) => { if (c !== this.flagship && c !== this.fleetPlumes.mesh) c.position.y += Math.sin(clock * 0.3 + i) * 0.0002; });
-    // 环形舰
-    this.ringShip.visible = t >= 114 && t < 126.5;
-    if (this.ringShip.visible) { const u = (t - 114) / 12.5; this.ringShip.position.set(lerp(0.4, -1.8, u), 0.15, lerp(1.6, 1.0, u)); this.ringShip.rotation.set(0.25, 0.9 + u * 0.3, clock * 0.05); }
 
-    // 行星背景
-    this.jupiter.visible = t >= 50 && t < 60.2;
+    // 行星背景：只在各自镜头内出现，接近时由暗变亮、略微变大，离开时缩小淡出（镜头切换处另有短暂溶暗）
+    const jf = sstep(52, 53.4, t) * (1 - sstep(58.8, 60, t));
+    const sf = sstep(60, 61.4, t) * (1 - sstep(65.2, 66.4, t));
+    const nf = sstep(66.4, 68.2, t) * (1 - sstep(75.0, 76.4, t));
+    this.jupiter.visible = t >= 52 && t < 60 && jf > 0.001;
     if (this.jupiter.visible) {
       // 地球后方约 1.5×10⁵ km（23.4 地球半径，洛希极限约 1.1×10⁵ km），木星半径 11.2 ≈ 7.1×10⁴ km
       const u = (t - 52) / 8, J = this.jupFrame || (this.shot(55), this.jupFrame);
-      this.jupiter.position.copy(J.n).multiplyScalar(-22.3).addScaledVector(J.r, lerp(6.0, 5.0, u)).addScaledVector(J.u, lerp(4.8, 4.2, u));
+      this.jupiter.position.copy(J.n).multiplyScalar(lerp(-26, -22.3, sstep(52, 56, t)) - 3 * sstep(57, 60, t)).addScaledVector(J.r, lerp(6.0, 5.0, u)).addScaledVector(J.u, lerp(4.8, 4.2, u));
       this.jupiter.rotation.y = clock * 0.03;
     }
-    this.saturn.visible = this.rings.visible = t >= 60 && t < 66.6;
+    this.saturn.visible = this.rings.visible = t >= 60 && t < 66.4 && sf > 0.001;
     if (this.saturn.visible) {
       const u = (t - 60) / 6.4;
-      this.saturn.position.set(lerp(-30, -24, u), lerp(-5, -3, u), lerp(-36, -32, u));
+      this.saturn.position.set(lerp(-34, -24, sstep(60, 63, t)) - 3 * sstep(64, 66.4, t), lerp(-5.5, -3, u), lerp(-40, -32, sstep(60, 63, t)) - 3 * sstep(64, 66.4, t));
       this.saturn.rotation.set(0.42, 0, 0.12);
       this.rings.position.copy(this.saturn.position); this.rings.rotation.set(-Math.PI / 2 + 0.42 + lerp(0.02, -0.03, u), 0, 0.12);
-      this.ringMat.uniforms.uC.value.copy(this.saturn.position); this.ringMat.uniforms.uSun.value.copy(sun); this.ringMat.uniforms.uSunInt.value = sunInt * 1.6;
+      this.ringMat.uniforms.uC.value.copy(this.saturn.position); this.ringMat.uniforms.uSun.value.copy(sun); this.ringMat.uniforms.uSunInt.value = sunInt * 1.6; this.ringMat.uniforms.uOp.value = sf;
     }
-    this.neptune.visible = t >= 66 && t < 76.6;
-    if (this.neptune.visible) { const u = (t - 66) / 10.4; this.neptune.position.set(lerp(-15, -11, u), lerp(3.2, 2.4, u), lerp(-12, -11, u)); }
-    for (const p of [this.jupiter, this.saturn, this.neptune]) { p.material.uniforms.uSun.value.copy(sun); p.material.uniforms.uSunInt.value = Math.max(sunInt, 0.35) * 1.25; }
-    this.moon.visible = ch === 1 && t > 28;
-    this.moon.position.set(-6, 1.2, -9); this.moon.material.uniforms.uSun.value.copy(sun);
+    this.neptune.visible = t >= 66.4 && t < 76.4 && nf > 0.001;
+    if (this.neptune.visible) { const u = (t - 66.4) / 10; this.neptune.position.set(lerp(-17, -11, sstep(66.4, 70, t)) - 2 * sstep(74, 76.4, t), lerp(3.2, 2.4, u), lerp(-13.5, -11, sstep(66.4, 70, t)) - 2 * sstep(74, 76.4, t)); }
+    for (const [p, f] of [[this.jupiter, jf], [this.saturn, sf], [this.neptune, nf]]) { const m = p.material.uniforms; m.uSun.value.copy(sun); m.uSunInt.value = Math.max(sunInt, 0.35) * 1.25 * f; m.uRimGain.value = p.userData.rimGain * f; }
 
     // 星际效果
     const flow = ch >= 3 && ch !== 5;
     this.streak.visible = flow || (ch === 2 && t > 40);
     const su = this.streak.material.uniforms;
-    su.uTime.value = clock; su.uDir.value.set(1, 0, 0.35).normalize();
+    su.uTime.value = clock; su.uDir.value.copy(heroW).normalize();   // 星光拖线沿推力轴向后流
     su.uSpeed.value = ch >= 4 ? 14 : 7; su.uOp.value = ch === 2 ? 0.25 : ch === 3 ? 0.45 : ch === 4 ? 0.9 : 0.35 * (1 - sstep(156, 170, t));
     su.uCenter.value.copy(this.camera.position);
-    this.shard.visible = t >= 76 && t < 87;
-    if (this.shard.visible) updateShards(this.shard, clock, V(2.4, 0, 0.8));
-    this.bow.visible = ch === 4 || (ch === 3 && t > 90);
+    const kf = sstep(76.4, 78.2, t) * (1 - sstep(84.8, 86, t));
+    this.shard.visible = t >= 76.4 && t < 86 && kf > 0.001;
+    if (this.shard.visible) updateShards(this.shard, clock, heroW.clone().normalize().multiplyScalar(2.5), 2.2, kf);
+    this.bow.visible = (ch === 4 || (ch === 3 && t > 90)) && !(t >= 116 && t < 126.4);   // 镜头 15 机位下激波侧看成一道白带，隐藏
     this.bowMat.uniforms.uTime.value = clock; this.bowMat.uniforms.uOp.value = ch === 4 ? 0.13 : sstep(90, 96, t) * 0.1;
     this.bow.position.set(-0.9, 0, -0.3); this.bow.lookAt(V(-3, 0, -1)); this.bow.rotateX(-Math.PI / 2);
     for (const a of [this.auroraN, this.auroraS]) { a.material.uniforms.uTime.value = clock; a.material.uniforms.uOp.value = ch === 4 ? 0.35 : ch === 3 ? 0.15 : 0; }
-    this.helio.visible = t >= 86 && t < 97;
+    this.helio.visible = t >= 86 && t < 96.4;
     if (this.helio.visible) { const u = (t - 86) / 10.4; this.helio.position.set(lerp(-6, 4, u), 0, lerp(-2, 1.4, u)); this.helio.lookAt(V(-20, 0, -7)); this.helioMat.uniforms.uTime.value = clock; this.helioMat.uniforms.uOp.value = Math.sin(Math.min(1, u * 1.1) * Math.PI) * 0.9; }
     // 天空
     const neb = ch === 3 ? sstep(84, 92, t) * 0.7 : ch === 4 ? 0.35 : 0;
@@ -533,7 +555,6 @@ export class EarthWorld {
       { name: '太空电梯锚点', en: 'ANCHOR', get: () => ({ target: W(this.anchorV).multiplyScalar(1.03), dist: 0.22 }) },
       { name: '天枢站', en: 'TIANSHU', get: () => ({ target: W(this.anchorV).multiplyScalar(GEO), dist: 0.7 }) },
       { name: '领航员号舰队', en: 'NAVIGATOR', get: () => ({ target: this.fleet.position.clone(), dist: 1.2 }) },
-      { name: '月球', en: 'LUNA', get: () => ({ target: this.moon.position.clone(), dist: 1.0 }) },
     ];
   }
 }

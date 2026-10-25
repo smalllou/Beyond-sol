@@ -200,20 +200,6 @@ export function buildEscort(mats, seed = 1) {
   return k.build(mats);
 }
 
-// 巨型环形舰（第四章掠过）
-export function buildRingShip(mats) {
-  const k = new Kit();
-  k.torus('hull', 1.0, 0.06, [0, 0, 0], [0, 0, 0], 160);
-  k.torus('gold', 1.0, 0.065, [0, 0, 0.05], [0, 0, 0], 160, Math.PI * 2);
-  for (let i = 0; i < 48; i++) {
-    const a = i / 48 * Math.PI * 2;
-    k.box(i % 2 ? 'white' : 'hull', [0.09, 0.12, 0.16], [Math.cos(a) * 1.0, Math.sin(a) * 1.0, 0], [0, 0, a]);
-  }
-  for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; k.box('dark', [0.02, 1.0, 0.02], [Math.cos(a) * 0.5, Math.sin(a) * 0.5, 0], [0, 0, a - Math.PI / 2]); }
-  k.cyl('hull', 0.1, 0.1, 0.3, [0, 0, 0], [Math.PI / 2, 0, 0], 20);
-  return k.build(mats);
-}
-
 // 天枢站：中心枢纽 + 双反向旋转环
 export function buildTianshu(mats) {
   const hub = new Kit();

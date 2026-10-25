@@ -10,7 +10,7 @@ const LIST = {
   earth_day: ['earth_day.jpg', true], earth_night: ['earth_night.jpg', true], earth_clouds: ['earth_clouds.jpg', false],
   earth_spec: ['earth_spec.jpg', false], earth_normal: ['earth_normal.jpg', false],
   jupiter: ['jupiter.jpg', true], saturn: ['saturn.jpg', true], saturn_ring: ['saturn_ring.png', true],
-  sun: ['sun.jpg', true], moon: ['moon.jpg', true], mars: ['mars.jpg', true], mercury: ['mercury.jpg', true],
+  sun: ['sun.jpg', true], mars: ['mars.jpg', true], mercury: ['mercury.jpg', true],
   venus: ['venus.jpg', true], uranus: ['uranus.jpg', true], neptune: ['neptune.jpg', true],
   milkyway: ['milkyway_eso.jpg', true],
 };

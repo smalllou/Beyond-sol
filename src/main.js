@@ -66,11 +66,12 @@ function worldFor(t) {
   if (t >= 126 && t < 152) return worlds.galaxy;
   return worlds.earth;
 }
-const CUTS = [36, 52, 126, 152];
+// 世界切换：完整溶黑；行星镜头之间：约 0.8 秒的短暂溶暗，避免上一颗消失、下一颗立刻出现的硬切
+const CUTS = [[36, 0.45, 1], [52, 0.45, 1], [126, 0.45, 1], [152, 0.45, 1], [60, 0.4, 0.9], [66.4, 0.4, 0.9], [76.4, 0.4, 0.85], [86, 0.4, 0.8]];
 function fadeFor(t) {
   let f = 0;
   if (t < 1.2) f = 1 - t / 1.2;
-  for (const c of CUTS) { const d = Math.abs(t - c); if (d < 0.45) f = Math.max(f, 1 - d / 0.45); }
+  for (const [c, w, k] of CUTS) { const d = Math.abs(t - c); if (d < w) f = Math.max(f, (1 - d / w) * k); }
   if (t > DURATION - 1.5) f = Math.max(f, (t - (DURATION - 1.5)) / 1.5);
   return Math.min(1, f);
 }
