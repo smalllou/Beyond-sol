@@ -15,6 +15,16 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const HERO = { lon: 104, lat: 31 };       // 重型阵列（四川盆地附近）
 const ANCHOR = { lon: 9.45, lat: 0 };     // 电梯赤道锚点：《流浪地球2》加蓬利伯维尔外海赤道平台（约 9.45°E）
 const GEO = 6.62;
+// 航行坐标系（第二至五章地球停转后固定）：发动机喷流沿 heroW 向后，地球沿 FWD 前进；太阳在身后
+const HERO_W = V(0.62, 0.40, 0.68).normalize();      // 停转后重型阵列的世界方向
+export const FWD = HERO_W.clone().negate();           // 前进方向
+const SIDE = V(0, 1, 0).cross(FWD).normalize(), UPF = FWD.clone().cross(SIDE).normalize();
+// 比邻星：加速段在正前方（偏一点点，免得被地球正好挡住）；第六章地球已掉头，发动机对准比邻星反推减速
+const AC4 = FWD.clone().addScaledVector(UPF, 0.06).normalize();
+const AC6 = HERO_W.clone().addScaledVector(UPF, 0.06).normalize();
+// 半人马座 α A/B：从远处看与比邻星只差约 2°；到了比邻星附近是另一个方向上的亮星
+const ACB4 = AC4.clone().addScaledVector(SIDE, 0.035).normalize();
+const ACB6 = AC6.clone().addScaledVector(SIDE, -0.55).addScaledVector(UPF, 0.4).normalize();
 
 function landMask(img) {
   const c = document.createElement('canvas'); c.width = 1024; c.height = 512;
@@ -191,6 +201,8 @@ export class EarthWorld {
       add(e, V(-0.6 - rnd() * 3.5, (rnd() - .5) * 0.9, (rnd() - .5) * 1.8), 0.2 + rnd() * 0.15);
     }
     this.fleetPlumes.commit(); this.fleet.add(this.fleetPlumes.mesh);
+    // 舰队局部 +X 是船头：对准前进方向，局部 +Y 尽量保持朝上
+    this.fleet.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(FWD, UPF, FWD.clone().cross(UPF)));
   }
 
   _buildPlanets(tex) {
@@ -326,10 +338,9 @@ export class EarthWorld {
     // 环绕镜头：沿 dir 方向、距地心 dist 处看向地心（+ 偏移），地球约占画面高度 2/(dist·2·tan(fov/2))
     const orbit = (dir, dist, fov, off = V(0, 0, 0)) => ({ pos: dir.clone().normalize().multiplyScalar(dist), look: off, fov });
     // 新太阳构图：相机在地球背向恒星一侧、略高于地—星连线，恒星在画面中上方，地球边缘在下方
-    const acS = V(-0.8, 0.26, 0.5).normalize();
-    const acU = V(0, 1, 0).addScaledVector(acS, -acS.y).normalize();
-    const acR = acS.clone().cross(acU).normalize();
-    const newSun = (back, up, lat, pitch, fov) => {
+    const newSun = (acS, back, up, lat, pitch, fov) => {
+      const acU = V(0, 1, 0).addScaledVector(acS, -acS.y).normalize();
+      const acR = acS.clone().cross(acU).normalize();
       const pos = acS.clone().multiplyScalar(-back).addScaledVector(acU, up).addScaledVector(acR, lat);
       const star = acS.clone().multiplyScalar(60);
       const d = star.clone().sub(pos).length();
@@ -376,9 +387,9 @@ export class EarthWorld {
       }],
       // 05 领航员舰队
       [30.0, 36.4, (u) => {
-        const F = this.fleet.position;
-        const c = F.clone().add(V(lerp(1.0, 0.35, u), lerp(0.22, 0.16, u), lerp(0.75, 0.9, u)));
-        return { pos: c, look: F.clone().add(V(-0.9 - u * 0.6, -0.08, -0.1)), fov: 44 };
+        const Fl = this.fleet; Fl.updateMatrixWorld();
+        const c = Fl.localToWorld(V(lerp(1.0, 0.35, u), lerp(0.22, 0.16, u), lerp(0.75, 0.9, u)));
+        return { pos: c, look: Fl.localToWorld(V(-0.9 - u * 0.6, -0.08, -0.1)), fov: 44, up: UPF };
       }],
       // 08 木星引力弹射
       [52.0, 60.0, (u) => {
@@ -393,16 +404,17 @@ export class EarthWorld {
       [76.4, 86.0, (u) => orbit(V(lerp(2.5, 2.1, u), lerp(0.35, 0.18, u), lerp(1.9, 1.7, u)), lerp(4.6, 4.3, u), 48)],
       // 12 日球层顶
       [86.0, 96.4, (u) => orbit(V(lerp(3.2, 2.4, u), lerp(0.6, 0.3, u), lerp(-2.0, -1.2, u)), lerp(5.0, 4.6, u), 44)],
-      // 13 冰封地球与舰队
-      [96.0, 106.6, (u) => orbit(V(lerp(4.4, 3.8, u), lerp(1.5, 1.1, u), lerp(2.4, 2.9, u)), lerp(5.4, 5.0, u), 40, V(0.1, 0.05, 0.05))],
+      // 13 冰封地球与舰队：侧面机位，地球在后、舰队在前方开路
+      [96.0, 106.6, (u) => ({ pos: SIDE.clone().multiplyScalar(lerp(-6.4, -5.8, u)).addScaledVector(UPF, lerp(1.6, 1.2, u)).addScaledVector(FWD, lerp(1.2, 1.8, u)), look: FWD.clone().multiplyScalar(1.5).addScaledVector(UPF, 0.3), fov: 44, up: UPF })],
       // 14 赤道发动机项链 + 弓形激波
       [106.6, 116.0, (u) => orbit(V(lerp(2.9, 2.5, u), lerp(0.5, 0.25, u), lerp(2.2, 2.0, u)), lerp(4.7, 4.4, u), 46)],
       // 15 前方：弓形激波与渐亮的比邻星（地球边缘在画面下方）
-      [116.0, 126.4, (u) => newSun(lerp(3.1, 2.6, u), lerp(1.45, 1.25, u), lerp(0.55, 0.2, u), 0.11, 44)],
+      // 相机在地球侧上方、发动机喷流的前侧，朝前看：地球边缘在画面下方，比邻星在正前方
+      [116.0, 126.4, (u) => newSun(AC4, lerp(1.2, 1.0, u), lerp(1.6, 1.45, u), lerp(0.4, 0.15, u), 0.26, 44)],
       // 17 新太阳：掉头减速
-      [152.0, 164.0, (u) => newSun(lerp(2.6, 2.25, u), lerp(1.85, 1.6, u), lerp(0.35, 0.1, u), 0.13, 44)],
+      [152.0, 164.0, (u) => newSun(AC6, lerp(2.6, 2.25, u), lerp(1.85, 1.6, u), lerp(0.35, 0.1, u), 0.13, 44)],
       // 18 抵达
-      [164.0, 174.5, (u) => newSun(lerp(2.25, 2.7, u), lerp(1.6, 2.0, u), lerp(0.1, -0.15, u), 0.13, 44)],
+      [164.0, 174.5, (u) => newSun(AC6, lerp(2.25, 2.7, u), lerp(1.6, 2.0, u), lerp(0.1, -0.15, u), 0.13, 44)],
     ];
     for (const [a, b, f] of S) if (t >= a && t < b) return f((t - a) / (b - a));
     return null;
@@ -426,7 +438,7 @@ export class EarthWorld {
     if (ch >= 2) { sun = V(0.55, 0.22, 0.8).normalize(); sunInt = keyed([[36, 1], [52, 0.62], [60, 0.45], [66, 0.36], [76, 0.24], [96, 0.14], [126, 0.08]], t); }   // 日面亮度随距离变暗
     if (ch === 6) {
       const k = sstep(152, 170, t);
-      sun = V(-0.8, 0.26, 0.5).normalize();
+      sun = AC6.clone();
       sunInt = lerp(0.1, 0.8, k);
       sunCol = new THREE.Color(lerp(0.8, 1.0, k), lerp(0.85, 0.66, k), lerp(1.0, 0.46, k));   // 比邻星偏红
     }
@@ -487,11 +499,11 @@ export class EarthWorld {
     this.cableGlow.opacity = 0.55 * (1 - 0.7 * Math.max(0, freeze - 0.5) * 2);
     if (!deep) { this.station.userData.rings[0].rotation.y = clock * 0.25; this.station.userData.rings[1].rotation.y = -clock * 0.25; }
 
-    // 舰队：位于前进方向（世界 -X 偏前）
+    // 舰队：在地球前进方向上开路，船头朝前；编队向后拉开约 4 个地球半径，所以整体偏到一侧，不压在地球上
     const fleetOn = (t >= 28 && t < 37) || (t >= 96 && t < 126);
     this.fleet.visible = fleetOn;
-    this.fleet.position.set(-2.8 + (t % 40) * 0.01, 0.35, -0.6);
-    if (t >= 96) this.fleet.position.set(1.3, 1.05, 1.0);
+    if (t < 96) this.fleet.position.copy(FWD).multiplyScalar(4.6 + (t % 40) * 0.01).addScaledVector(SIDE, 1.7).addScaledVector(UPF, 0.4);
+    else this.fleet.position.copy(FWD).multiplyScalar(4.8).addScaledVector(SIDE, -0.9).addScaledVector(UPF, 1.0);
     this.fleetPlumes.uniforms.uTime.value = clock; this.fleetPlumes.uniforms.uIgnite.value = 1e5;
     this.fleet.children.forEach((c, i) => { if (c !== this.flagship && c !== this.fleetPlumes.mesh) c.position.y += Math.sin(clock * 0.3 + i) * 0.0002; });
 
@@ -522,7 +534,8 @@ export class EarthWorld {
     const flow = ch >= 3 && ch !== 5;
     this.streak.visible = flow || (ch === 2 && t > 40);
     const su = this.streak.material.uniforms;
-    su.uTime.value = clock; su.uDir.value.copy(heroW).normalize();   // 星光拖线沿推力轴向后流
+    su.uTime.value = clock; su.uDir.value.copy(heroW).normalize();   // 星光拖线逆着速度方向流：加速段速度沿 -heroW，拖线沿 heroW
+    if (ch === 6) su.uDir.value.negate();     // 第六章已掉头：速度朝比邻星（+heroW），拖线反向
     su.uSpeed.value = ch >= 4 ? 14 : 7; su.uOp.value = ch === 2 ? 0.25 : ch === 3 ? 0.45 : ch === 4 ? 0.9 : 0.35 * (1 - sstep(156, 170, t));
     su.uCenter.value.copy(this.camera.position);
     const kf = sstep(76.4, 78.2, t) * (1 - sstep(84.8, 86, t));
@@ -530,10 +543,10 @@ export class EarthWorld {
     if (this.shard.visible) updateShards(this.shard, clock, heroW.clone().normalize().multiplyScalar(2.5), 2.2, kf);
     this.bow.visible = (ch === 4 || (ch === 3 && t > 90)) && !(t >= 116 && t < 126.4);   // 镜头 15 机位下激波侧看成一道白带，隐藏
     this.bowMat.uniforms.uTime.value = clock; this.bowMat.uniforms.uOp.value = ch === 4 ? 0.13 : sstep(90, 96, t) * 0.1;
-    this.bow.position.set(-0.9, 0, -0.3); this.bow.lookAt(V(-3, 0, -1)); this.bow.rotateX(-Math.PI / 2);
+    this.bow.position.copy(FWD).multiplyScalar(0.2); this.bow.lookAt(FWD.clone().multiplyScalar(5)); this.bow.rotateX(Math.PI / 2);   // 激波顶点在正前方约 1.5 个地球半径，开口朝后
     for (const a of [this.auroraN, this.auroraS]) { a.material.uniforms.uTime.value = clock; a.material.uniforms.uOp.value = ch === 4 ? 0.35 : ch === 3 ? 0.15 : 0; }
     this.helio.visible = t >= 86 && t < 96.4;
-    if (this.helio.visible) { const u = (t - 86) / 10.4; this.helio.position.set(lerp(-6, 4, u), 0, lerp(-2, 1.4, u)); this.helio.lookAt(V(-20, 0, -7)); this.helioMat.uniforms.uTime.value = clock; this.helioMat.uniforms.uOp.value = Math.sin(Math.min(1, u * 1.1) * Math.PI) * 0.9; }
+    if (this.helio.visible) { const u = (t - 86) / 10.4; this.helio.position.copy(FWD).multiplyScalar(lerp(6.3, -4.2, u)); this.helio.lookAt(FWD.clone().multiplyScalar(30)); this.helioMat.uniforms.uTime.value = clock; this.helioMat.uniforms.uOp.value = Math.sin(Math.min(1, u * 1.1) * Math.PI) * 0.9; }
     // 天空
     const neb = ch === 3 ? sstep(84, 92, t) * 0.7 : ch === 4 ? 0.35 : 0;
     this.sky.material.uniforms.uNeb.value = neb;
@@ -541,9 +554,9 @@ export class EarthWorld {
     this.stars.material.uniforms.uTime.value = clock;
     // 比邻星
     const ac = ch === 6 ? sstep(152, 168, t) : ch === 4 ? 0.08 + sstep(116, 126, t) * 0.12 : 0;
-    const acDir = V(-0.8, 0.26, 0.5).normalize();
+    const acDir = ch === 6 ? AC6 : AC4;
     this.acenA.position.copy(acDir.clone().multiplyScalar(60)); this.acenA.scale.setScalar(lerp(5, 34, ac)); this.acenA.material.uniforms.uOp.value = ac > 0 ? 0.25 + ac : 0;
-    this.acenB.position.copy(V(-0.55, 0.62, 0.56).normalize().multiplyScalar(60)); this.acenB.scale.setScalar(lerp(1.2, 2.6, ac)); this.acenB.material.uniforms.uOp.value = ac > 0 ? 0.2 + ac * 0.5 : 0;
+    this.acenB.position.copy((ch === 6 ? ACB6 : ACB4).clone().multiplyScalar(60)); this.acenB.scale.setScalar(lerp(1.2, 2.6, ac)); this.acenB.material.uniforms.uOp.value = ac > 0 ? 0.2 + ac * 0.5 : 0;
     const os = ch === 2 ? 1 : ch === 3 ? 0.5 : 0;
     this.oldSun.position.copy(sun.clone().multiplyScalar(80)); this.oldSun.scale.setScalar(ch === 2 ? 16 : 7); this.oldSun.material.uniforms.uOp.value = os * sunInt;
     this.oldSun.visible = os > 0;
