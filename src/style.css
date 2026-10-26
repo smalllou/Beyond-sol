@@ -126,7 +126,6 @@ label.sub { margin: 6px 0 2px; }
 .chapters .ch .pr { height: 3px; background: var(--faint); margin-top: 8px; border-radius: 2px; overflow: hidden; }
 .chapters .ch .pr i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #5d9cf0, #cfe6ff); }
 .time { font-family: var(--mono); font-size: 13px; color: var(--dim); flex: none; }
-.fan { position: absolute; right: 30px; bottom: 6px; font-family: var(--sc); font-size: 10px; letter-spacing: .2em; color: rgba(160,180,210,.45); }
 
 /* 探索 */
 .dest { position: absolute; right: 26px; top: 112px; width: 300px; padding: 18px 20px; background: var(--panel); border: 1px solid rgba(150,185,230,.18); opacity: 0; transform: translateX(20px); transition: all .5s; pointer-events: none !important; }

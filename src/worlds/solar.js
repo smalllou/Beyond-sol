@@ -236,7 +236,15 @@ export class SolarWorld {
       const u = (t - 36) / 9.2;
       const a = lerp(0.9, 1.35, u);
       const d = lerp(46, 58, u);
-      return { pos: V(Math.cos(a) * d, lerp(26, 22, u), Math.sin(a) * d), look: V(lerp(2, 4, u), 0, lerp(-2, -4, u)), fov: 42 };
+      const wide = { pos: V(Math.cos(a) * d, lerp(26, 22, u), Math.sin(a) * d), look: V(lerp(2, 4, u), 0, lerp(-2, -4, u)), fov: 42 };
+      // 开头 4 秒接第一章的拉远：从与上一镜同样大小的地球（约 16 个地球半径外）对数式继续拉远到全景
+      if (t < 40) {
+        const E = this.earth.position, k = sstep(36, 40, t);
+        const dir = wide.pos.clone().sub(E), dw = dir.length(); dir.divideScalar(dw);
+        const dist = Math.exp(lerp(Math.log(0.34 * 16), Math.log(dw), k));
+        return { pos: E.clone().addScaledVector(dir, dist), look: E.clone().lerp(wide.look, k), fov: 42 };
+      }
+      return wide;
     }
     if (t >= 45.2 && t < 52.5) {
       const u = (t - 45.2) / 7.3;

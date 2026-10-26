@@ -490,7 +490,9 @@ export class EarthWorld {
       [27.9, () => { const top = anchor.clone().multiplyScalar(GEO); const pos = top.clone().addScaledVector(anchor, 0.95).addScaledVector(Ta, 0.5).addScaledVector(Y, 0.18); const toArk = top.clone().sub(pos).normalize(), toE = pos.clone().negate().normalize(); return { pos, look: pos.clone().add(toArk.multiplyScalar(0.45).add(toE.multiplyScalar(0.55))), up: Y, fov: 46 }; }],
       // 滑向前方的领航员国际空间站
       [31.0, () => ({ pos: Fl.localToWorld(V(1.05, 0.34, 1.2)), look: Fl.localToWorld(V(0.12, -0.04, -0.05)), up: UPF, fov: 44 })],
-      [36.4, () => ({ pos: Fl.localToWorld(V(0.7, 0.26, 1.25)), look: Fl.localToWorld(V(0.12, -0.04, -0.05)), up: UPF, fov: 44 })],
+      [33.4, () => ({ pos: Fl.localToWorld(V(0.8, 0.28, 1.24)), look: Fl.localToWorld(V(0.12, -0.04, -0.05)), up: UPF, fov: 44 })],
+      // 拉远：领航员缩成光点，地球缩成小圆盘，溶接第二章太阳系全景（第二章开头从同样大小的地球继续拉远）
+      [36.4, () => { const d = Fl.localToWorld(V(0.8, 0.28, 1.24)).normalize(); return { pos: d.multiplyScalar(16), look: V(0, 0, 0), up: UPF, fov: 42 }; }],
     ];
     let i = 0; while (i < keys.length - 2 && t >= keys[i + 1][0]) i++;
     const k = (j) => { const e = keys[Math.max(0, Math.min(keys.length - 1, j))][1](); const r = e.pos.length(); return { dir: e.pos.clone().divideScalar(r), lr: Math.log(r), fwd: e.look.clone().sub(e.pos).normalize(), up: e.up.clone().normalize(), fov: e.fov }; };
