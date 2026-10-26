@@ -38,6 +38,7 @@ function landMask(img) {
   };
 }
 
+const RING_EQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
 export class EarthWorld {
   constructor(tex) {
     this.scene = new THREE.Scene();
@@ -534,7 +535,7 @@ export class EarthWorld {
       const u = (t - 60) / 6.4;
       this.saturn.position.set(lerp(-34, -24, sstep(60, 63, t)) - 3 * sstep(64, 66.4, t), lerp(-5.5, -3, u), lerp(-40, -32, sstep(60, 63, t)) - 3 * sstep(64, 66.4, t));
       this.saturn.rotation.set(0.42, 0, 0.12);
-      this.rings.position.copy(this.saturn.position); this.rings.rotation.set(-Math.PI / 2 + 0.42 + lerp(0.02, -0.03, u), 0, 0.12);
+      this.rings.position.copy(this.saturn.position); this.rings.quaternion.copy(this.saturn.quaternion).multiply(RING_EQ); // 光环严格位于土星赤道面
       this.ringMat.uniforms.uC.value.copy(this.saturn.position); this.ringMat.uniforms.uSun.value.copy(sun); this.ringMat.uniforms.uSunInt.value = sunInt * 1.6; this.ringMat.uniforms.uOp.value = sf;
     }
     this.neptune.visible = t >= 66.4 && t < 76.4 && nf > 0.001;

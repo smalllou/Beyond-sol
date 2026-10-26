@@ -129,7 +129,7 @@ export class HUD {
     const key = end ? 'end' : ch.id;
     if (on && this.cardChapter !== key) {
       this.cardChapter = key;
-      if (end) { $('card-k').textContent = 'FIN · 旅程结束'; $('card-t').textContent = 'BEYOND SOL'; $('card-z').textContent = '再见，太阳系'; $('card-s').textContent = '粉丝概念 · 非官方 · 向《流浪地球》致敬'; }
+      if (end) { $('card-k').textContent = 'FIN · 旅程结束'; $('card-t').textContent = 'BEYOND SOL'; $('card-z').textContent = '再见，太阳系'; $('card-s').textContent = ''; }
       else { $('card-k').textContent = `CHAPTER ${ch.id}`; $('card-t').textContent = ch.en; $('card-z').textContent = ch.zh; $('card-s').textContent = ch.years; }
     }
     card.classList.toggle('on', !!on);

@@ -10,14 +10,14 @@ const ENGINE_LON = 110 * Math.PI / 180; // 发动机半球中心经度（东亚�
 export const artR = (au) => 6 * Math.pow(au, 0.6);
 
 const PLANETS = [
-  // 名称, 贴图, AU, 半径, 公转周期（年）, 初相
-  ['水星', 'mercury', 0.39, 0.16, 0.24, 1.0],
-  ['金星', 'venus', 0.72, 0.3, 0.62, 2.4],
-  ['火星', 'mars', 1.52, 0.22, 1.88, 4.0],
-  ['木星', 'jupiter', 5.2, 1.15, 11.86, 0.6],
-  ['土星', 'saturn', 9.54, 0.95, 29.4, 5.3],
-  ['天王星', 'uranus', 19.2, 0.55, 84, 3.1],
-  ['海王星', 'neptune', 30.1, 0.53, 165, 4.6],
+  // 名称, 贴图, AU, 半径, 公转周期（年）, 初相, 自转轴倾角（度，空间中固定）
+  ['水星', 'mercury', 0.39, 0.16, 0.24, 1.0, 0.03],
+  ['金星', 'venus', 0.72, 0.3, 0.62, 2.4, 2.6],
+  ['火星', 'mars', 1.52, 0.22, 1.88, 4.0, 25.2],
+  ['木星', 'jupiter', 5.2, 1.15, 11.86, 0.6, 3.1],
+  ['土星', 'saturn', 9.54, 0.95, 29.4, 5.3, 26.7],
+  ['天王星', 'uranus', 19.2, 0.55, 84, 3.1, 97.8],
+  ['海王星', 'neptune', 30.1, 0.53, 165, 4.6, 28.3],
 ];
 
 export class SolarWorld {
@@ -71,17 +71,17 @@ export class SolarWorld {
     this._buildFlares();
 
     // 行星与轨道
-    this.planets = PLANETS.map(([zh, key, au, r, per, ph]) => {
+    this.planets = PLANETS.map(([zh, key, au, r, per, ph, tilt]) => {
       const m = new THREE.Mesh(new THREE.SphereGeometry(r, 64, 32), planetMaterial(tex[key], { rimGain: 0.25 }));
       S.add(m);
       const orbit = this._orbit(artR(au), 0x7d93b5, 0.32); S.add(orbit);
-      const o = { zh, key, au, r, per, ph, mesh: m, R: artR(au) };
+      const o = { zh, key, au, r, per, ph, tilt: tilt * Math.PI / 180, mesh: m, R: artR(au) };
       if (key === 'saturn') {
         const rg = new THREE.RingGeometry(r * 1.3, r * 2.3, 128);
         const pos = rg.attributes.position, uv = rg.attributes.uv;
         for (let i = 0; i < pos.count; i++) { const rr = Math.hypot(pos.getX(i), pos.getY(i)); uv.setXY(i, (rr - r * 1.3) / (r), 0.5); }
         const ring = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ map: tex.saturn_ring, transparent: true, side: THREE.DoubleSide, depthWrite: false, color: new THREE.Color(1.3, 1.25, 1.1) }));
-        ring.rotation.x = -Math.PI / 2 + 0.45; m.add(ring);
+        ring.rotation.x = -Math.PI / 2; m.add(ring); // 光环位于赤道面，随星体姿态而定，不再单独倾斜
       }
       return o;
     });
@@ -262,7 +262,8 @@ export class SolarWorld {
     for (const p of this.planets) {
       const a = p.ph + yr / p.per * Math.PI * 2;
       p.mesh.position.set(Math.cos(a) * p.R, 0, Math.sin(a) * p.R);
-      p.mesh.rotation.y = clock * 0.2;
+      // 自转轴先固定倾斜，再绕自身极轴自转（Euler XYZ：R = Rx(倾角)·Ry(自转)），光环不会再摇摆
+      p.mesh.rotation.set(p.tilt, clock * 0.2, 0);
       const s = p.mesh.position.clone().negate().normalize();
       p.mesh.material.uniforms.uSun.value.copy(s);
     }
