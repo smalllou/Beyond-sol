@@ -93,27 +93,31 @@ export class Kit {
 
 // —— 具体资产 ——
 
-// 领航员国际空间站（《流浪地球》）：单座空间站，按片中镜头与官方 MENG 模型还原。
-// 局部 +X 为船头：前端是两道交错的巨型辐条圆环（外圈亮窗居住环 + 梯田状多层辐条圆盘），
-// 中段是一串方盒舱段组成的主脊，尾部是带放射状鳍片的推进段。总长约 1，圆环半径约 0.34。
-// M：方舟号同一套 PBR 材质 { hull, dark, white, gold, warm, lamp, red }
+// 领航员国际空间站（《流浪地球》）：单座空间站，按片中镜头与官方 MENG MMS-002 模型还原。
+// 局部 +X 为船头。前端：巨型辐条轮（方截面格栅桁架外缘 + 三道同心桁架环 + 自行车式交叉密辐条 + 内环舱段模块）；
+// 中段：一道粗大的分节亮窗居住环，与大轮成约 65° 交错（陀螺仪式），主脊穿过其圆心；
+// 主脊：一串粗方盒格栅舱段；尾部：推进段，8 根向后掠的尖刺肋。整体深枪灰色钢结构，窗光暖黄。
+// M：{ hull, dark, steel, warm, lamp, red }
 export function buildNavigator(M) {
-  const g = new THREE.Group(), st = new THREE.Group();
+  const g = new THREE.Group();
   const add = (parent, geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => {
     const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); parent.add(m); return m;
   };
   const Y = new THREE.Vector3(0, 1, 0);
-  const strut = (parent, p0, p1, r, mat) => {
+  const strut = (parent, p0, p1, r, mat, seg = 4) => {
     const d = new THREE.Vector3().subVectors(p1, p0), len = d.length();
-    const geo = new THREE.CylinderGeometry(r, r, len, 5);
+    const geo = new THREE.CylinderGeometry(r, r, len, seg);
     geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, d.normalize()));
     geo.translate((p0.x + p1.x) / 2, (p0.y + p1.y) / 2, (p0.z + p1.z) / 2);
     parent.add(new THREE.Mesh(geo, mat));
   };
+  // 合并成每种材质一个网格；坐标相对 grp 自身（不含 grp 的变换）
   const bake = (grp) => {
+    const inv = new THREE.Matrix4().copy(grp.matrixWorld).invert();
     grp.updateMatrixWorld(true);
-    const by = new Map();
-    grp.traverse((o) => { if (!o.isMesh) return; const q = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld); for (const k of Object.keys(q.attributes)) if (!['position', 'normal', 'uv'].includes(k)) q.deleteAttribute(k); (by.get(o.material) || by.set(o.material, []).get(o.material)).push(q); });
+    const rel = new THREE.Matrix4(), by = new Map();
+    const inv2 = new THREE.Matrix4().copy(grp.matrixWorld).invert();
+    grp.traverse((o) => { if (!o.isMesh) return; rel.multiplyMatrices(inv2, o.matrixWorld); const q = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(rel); for (const k of Object.keys(q.attributes)) if (!['position', 'normal', 'uv'].includes(k)) q.deleteAttribute(k); (by.get(o.material) || by.set(o.material, []).get(o.material)).push(q); });
     const out = new THREE.Group();
     for (const [mat, list] of by) out.add(new THREE.Mesh(mergeGeometries(list, false), mat));
     return out;
@@ -124,62 +128,95 @@ export function buildNavigator(M) {
     list.forEach((p, i) => { m4.makeTranslation(p.x, p.y, p.z); im.setMatrixAt(i, m4); });
     return im;
   };
-  // —— 主脊：芯管 + 一串方盒舱段（片中像一节节集装箱）
-  add(st, new THREE.CylinderGeometry(0.012, 0.012, 0.9, 8), M.dark, -0.05, 0, 0, 0, 0, Math.PI / 2);
-  for (let i = 0; i < 7; i++) {
-    const x = -0.3 + i * 0.075, s = 0.06 + (i % 2) * 0.012;
-    add(st, new THREE.BoxGeometry(0.06, s, s), i % 3 ? M.hull : M.white, x, 0, 0, Math.PI / 4 * (i % 2), 0, 0);
-    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4; strut(st, new THREE.Vector3(x - 0.035, Math.cos(a) * s * 0.75, Math.sin(a) * s * 0.75), new THREE.Vector3(x + 0.04, Math.cos(a) * s * 0.75, Math.sin(a) * s * 0.75), 0.003, M.dark); }
-  }
-  // —— 推进段：粗筒 + 8 片放射鳍 + 喷口
-  add(st, new THREE.CylinderGeometry(0.04, 0.05, 0.14, 16), M.hull, -0.4, 0, 0, 0, 0, Math.PI / 2);
-  add(st, new THREE.CylinderGeometry(0.05, 0.03, 0.05, 16, 1, true), M.dark, -0.49, 0, 0, 0, 0, Math.PI / 2);
-  for (let k = 0; k < 8; k++) {
-    const a = k / 8 * Math.PI * 2, fin = new THREE.Group(); fin.position.set(-0.41, 0, 0); fin.rotation.x = a; st.add(fin);
-    add(fin, new THREE.BoxGeometry(0.11, 0.13, 0.006), k % 2 ? M.hull : M.white, -0.01, 0.1, 0, 0, 0, -0.35);
-  }
-  // —— 前端：梯田辐条圆盘（多层同心环，向前逐级收小）
-  const disc = new THREE.Group(); disc.position.x = 0.32;
-  const DR = [0.34, 0.27, 0.2, 0.13];
-  DR.forEach((r, i) => {
-    const x = i * 0.025;
-    add(disc, new THREE.TorusGeometry(r, 0.008 - i * 0.001, 6, 160), i ? M.hull : M.white, x, 0, 0, 0, Math.PI / 2);
-    add(disc, new THREE.TorusGeometry(r, 0.004, 4, 160), M.dark, x - 0.02, 0, 0, 0, Math.PI / 2);
-    const n = 48 - i * 8;
+  // 在 YZ 平面（法线 = X）上的点
+  const Q = (r, a, x) => new THREE.Vector3(x, Math.cos(a) * r, Math.sin(a) * r);
+  // 方截面格栅环：四道弦杆 + 每格竖撑、外面/前后面 X 斜撑
+  const lattice = (parent, r, depth, width, n, rail, brace, matRail, matBrace) => {
+    const ri = r - depth / 2, ro = r + depth / 2, xf = width / 2, xb = -width / 2;
+    for (const [rr, xx] of [[ri, xf], [ri, xb], [ro, xf], [ro, xb]]) add(parent, new THREE.TorusGeometry(rr, rail, 5, Math.max(64, n * 2)), matRail, xx, 0, 0, 0, Math.PI / 2);
     for (let k = 0; k < n; k++) {
-      const a = k / n * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
-      if (i === 0) {                                            // 外圈环形桁架的三角斜撑
-        const a1 = (k + 1) / n * Math.PI * 2;
-        strut(disc, new THREE.Vector3(x, c * r, s * r), new THREE.Vector3(x - 0.02, Math.cos(a1) * r, Math.sin(a1) * r), 0.0018, M.dark);
-      }
-      if (k % 2 === 0) {                                        // 辐条：从内一圈连到本圈
-        const r0 = DR[i + 1] ?? 0.03, x0 = (i + 1) * 0.025;
-        strut(disc, new THREE.Vector3(x0, c * r0, s * r0), new THREE.Vector3(x, c * r, s * r), 0.0016, M.hull);
-      }
+      const a0 = k / n * Math.PI * 2, a1 = (k + 1) / n * Math.PI * 2;
+      strut(parent, Q(ri, a0, xf), Q(ro, a0, xf), brace, matBrace); strut(parent, Q(ri, a0, xb), Q(ro, a0, xb), brace, matBrace);
+      strut(parent, Q(ro, a0, xf), Q(ro, a0, xb), brace, matBrace); strut(parent, Q(ri, a0, xf), Q(ri, a0, xb), brace, matBrace);
+      strut(parent, Q(ro, a0, xf), Q(ro, a1, xb), brace * 0.8, matBrace); strut(parent, Q(ro, a0, xb), Q(ro, a1, xf), brace * 0.8, matBrace);
+      strut(parent, Q(ri, a0, xf), Q(ro, a1, xf), brace * 0.8, matBrace); strut(parent, Q(ri, a0, xb), Q(ro, a1, xb), brace * 0.8, matBrace);
     }
-  });
-  add(disc, new THREE.CylinderGeometry(0.04, 0.05, 0.08, 16), M.white, 0.06, 0, 0, 0, 0, Math.PI / 2);
-  // —— 亮窗居住环：与圆盘交错倾斜的大圆环（片中最醒目的发光环）
-  const hab = new THREE.Group(); hab.position.x = 0.2; hab.rotation.z = 0.5;
-  add(hab, new THREE.TorusGeometry(0.31, 0.016, 10, 180), M.hull, 0, 0, 0, 0, Math.PI / 2);
-  for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; strut(hab, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, Math.cos(a) * 0.3, Math.sin(a) * 0.3), 0.004, M.dark); }
-  const win = [];
-  for (let i = 0; i < 220; i++) { const a = rnd() * Math.PI * 2; if (rnd() < 0.2) continue; win.push(new THREE.Vector3(0.012 * (rnd() < 0.5 ? 1 : -1), Math.cos(a) * 0.31, Math.sin(a) * 0.31)); }
-  const habWin = dots(win, M.warm, 0.007);
-  // 对接臂上的小运输艇（片中有往返运输艇）
-  add(st, new THREE.BoxGeometry(0.05, 0.016, 0.016), M.dark, 0.0, 0.06, 0);
-  add(st, new THREE.ConeGeometry(0.012, 0.04, 8), M.white, 0.03, 0.075, 0, 0, 0, -Math.PI / 2);
-  // 合并静态部分；居住环与圆盘绕主轴缓慢反向旋转
+  };
+  // —— 1. 前端巨型辐条轮
+  const wheel = new THREE.Group();
+  const RW = 0.4;
+  lattice(wheel, RW, 0.045, 0.07, 120, 0.0035, 0.0012, M.steel, M.hull);
+  lattice(wheel, 0.31, 0.03, 0.05, 90, 0.003, 0.001, M.hull, M.dark);
+  lattice(wheel, 0.2, 0.03, 0.06, 64, 0.003, 0.001, M.hull, M.dark);
+  add(wheel, new THREE.TorusGeometry(0.11, 0.018, 8, 64), M.dark, 0, 0, 0, 0, Math.PI / 2);   // 内圈实体舱环
+  for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; const p = Q(0.11, a, 0); add(wheel, new THREE.BoxGeometry(0.03, 0.035, 0.035), k % 3 ? M.hull : M.steel, p.x, p.y, p.z, a); }
+  // 外缘舱段模块（片中外缘挂满方块设备舱）
+  for (let k = 0; k < 40; k++) { const a = k / 40 * Math.PI * 2 + rnd() * 0.05, p = Q(RW - 0.01, a, 0); if (rnd() < 0.35) continue; add(wheel, new THREE.BoxGeometry(0.06 + rnd() * 0.03, 0.02, 0.025 + rnd() * 0.02), rnd() < 0.5 ? M.hull : M.dark, p.x, p.y, p.z, a); }
+  // 自行车式交叉辐条：从轮毂前后两侧拉到外缘，切向错开
+  for (let k = 0; k < 96; k++) {
+    const a = k / 96 * Math.PI * 2, side = k % 2 ? 1 : -1;
+    strut(wheel, Q(0.11, a + side * 0.35, side * 0.03), Q(RW - 0.022, a, side * 0.03), 0.0007, M.steel, 3);
+  }
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; strut(wheel, Q(0.04, a, 0), Q(RW - 0.02, a, 0), 0.004, M.hull); }    // 主辐梁
+  add(wheel, new THREE.CylinderGeometry(0.045, 0.05, 0.1, 16), M.dark, 0, 0, 0, 0, 0, Math.PI / 2);
+  // 轮内暖色灯点（舱室窗光）
+  const wl = []; for (let i = 0; i < 160; i++) { const rr = [0.11, 0.2, 0.31][i % 3] + (rnd() - 0.5) * 0.02, a = rnd() * Math.PI * 2; wl.push(Q(rr, a, (rnd() - 0.5) * 0.04)); }
+  wheel.add(dots(wl, M.warm, 0.004));
+  wheel.updateMatrixWorld(true);
+  const wheelB = bake(wheel); wheelB.add(wheel.children.find(c => c.isInstancedMesh));
+  const spinW = new THREE.Group(); spinW.position.x = 0.36; spinW.add(wheelB); g.add(spinW);
+
+  // —— 2. 亮窗居住环：粗方截面、分节，与大轮成约 65°
+  const hab = new THREE.Group();
+  const RH = 0.33, NSEG = 36;
+  for (let k = 0; k < NSEG; k++) {
+    const a = (k + 0.5) / NSEG * Math.PI * 2, len = 2 * Math.PI * RH / NSEG;
+    const p = new THREE.Vector3(0, Math.cos(a) * RH, Math.sin(a) * RH);
+    add(hab, new THREE.BoxGeometry(0.04, 0.034, len * 0.86), M.hull, p.x, p.y, p.z, a);
+    add(hab, new THREE.BoxGeometry(0.046, 0.04, len * 0.12), M.dark, p.x, p.y, p.z, a + Math.PI / NSEG);
+  }
+  for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2 + Math.PI / 4; strut(hab, new THREE.Vector3(0, Math.cos(a) * 0.05, Math.sin(a) * 0.05), new THREE.Vector3(0, Math.cos(a) * (RH - 0.02), Math.sin(a) * (RH - 0.02)), 0.005, M.dark); }
+  add(hab, new THREE.TorusGeometry(0.05, 0.012, 8, 32), M.dark, 0, 0, 0, 0, Math.PI / 2);
+  hab.updateMatrixWorld(true);
+  const habB = bake(hab);
+  const hw = [];
+  for (let k = 0; k < NSEG * 7; k++) { const a = (k + 0.5) / (NSEG * 7) * Math.PI * 2; if (k % 7 === 6 || rnd() < 0.12) continue; for (const sx of [0.021, -0.021]) hw.push(new THREE.Vector3(sx, Math.cos(a) * RH, Math.sin(a) * RH)); for (const rr of [RH + 0.018, RH - 0.018]) if (rnd() < 0.6) hw.push(new THREE.Vector3(0, Math.cos(a) * rr, Math.sin(a) * rr)); }
+  habB.add(dots(hw, M.warm, 0.0042));
+  const spinH = new THREE.Group(); spinH.add(habB);
+  const tiltH = new THREE.Group(); tiltH.position.x = 0.12; tiltH.rotation.z = 1.13; tiltH.add(spinH); g.add(tiltH);
+
+  // —— 3. 主脊：粗方盒格栅舱段
+  const st = new THREE.Group();
+  add(st, new THREE.CylinderGeometry(0.018, 0.018, 0.86, 10), M.dark, -0.04, 0, 0, 0, 0, Math.PI / 2);
+  for (let i = 0; i < 6; i++) {
+    const x = -0.26 + i * 0.085, s = 0.085 + (i % 2) * 0.012;
+    add(st, new THREE.BoxGeometry(0.07, s, s), i % 2 ? M.dark : M.hull, x, 0, 0);
+    for (const [cy, cz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {      // 盒角格栅
+      const h = s / 2 + 0.006;
+      strut(st, new THREE.Vector3(x - 0.04, cy * h, cz * h), new THREE.Vector3(x + 0.04, cy * h, cz * h), 0.0025, M.steel);
+      strut(st, new THREE.Vector3(x - 0.04, cy * h, cz * h), new THREE.Vector3(x + 0.04, -cy * h, cz * h), 0.0012, M.steel);
+    }
+  }
+  add(st, new THREE.BoxGeometry(0.06, 0.02, 0.02), M.dark, 0.0, 0.07, 0);                     // 运输艇对接臂
+  add(st, new THREE.ConeGeometry(0.013, 0.045, 8), M.steel, 0.035, 0.085, 0, 0, 0, -Math.PI / 2);
+  // —— 4. 推进段：粗筒 + 向后掠的尖刺肋 + 喷口
+  add(st, new THREE.CylinderGeometry(0.06, 0.075, 0.16, 20), M.hull, -0.39, 0, 0, 0, 0, Math.PI / 2);
+  add(st, new THREE.TorusGeometry(0.075, 0.01, 6, 32), M.dark, -0.35, 0, 0, 0, Math.PI / 2);
+  add(st, new THREE.CylinderGeometry(0.06, 0.04, 0.05, 20, 1, true), M.dark, -0.49, 0, 0, 0, 0, Math.PI / 2);
+  for (let k = 0; k < 8; k++) {
+    const a = k / 8 * Math.PI * 2, long = k % 2 === 0;
+    const p0 = Q(0.07, a, -0.33), p1 = Q(long ? 0.2 : 0.14, a, long ? -0.5 : -0.45);
+    const d = new THREE.Vector3().subVectors(p1, p0), len = d.length();
+    const cone = new THREE.ConeGeometry(0.014, len, 4); cone.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, d.normalize())); cone.translate((p0.x + p1.x) / 2, (p0.y + p1.y) / 2, (p0.z + p1.z) / 2);
+    st.add(new THREE.Mesh(cone, M.hull));
+    strut(st, Q(0.075, a, -0.45), p1, 0.003, M.dark);
+  }
+  st.updateMatrixWorld(true);
   g.add(bake(st));
-  const discB = bake(disc); discB.position.copy(disc.position); discB.children.forEach(m => m.geometry.translate(-disc.position.x, 0, 0));
-  const spinD = new THREE.Group(); spinD.position.x = 0.32; discB.position.set(0, 0, 0); spinD.add(discB); g.add(spinD);
-  const habB = bake(hab); const spinH = new THREE.Group(); spinH.position.x = 0.2; spinH.rotation.z = 0.5;
-  habB.children.forEach(m => m.geometry.applyMatrix4(new THREE.Matrix4().copy(hab.matrixWorld).invert()));
-  const habSpin = new THREE.Group(); habSpin.add(habB); habSpin.add(habWin); spinH.add(habSpin); g.add(spinH);
   // 航行灯
-  g.add(dots([new THREE.Vector3(-0.5, 0, 0.06), new THREE.Vector3(-0.5, 0, -0.06), new THREE.Vector3(0.4, 0.35, 0)], M.red, 0.01));
-  g.add(dots([new THREE.Vector3(0.33, -0.35, 0), new THREE.Vector3(0.33, 0, 0.35), new THREE.Vector3(0.33, 0, -0.35)], M.lamp, 0.008));
-  g.userData.spin = [[spinD, 0.08], [habSpin, -0.12]];      // 绕局部 X
+  g.add(dots([Q(0.2, 0, -0.5), Q(0.2, Math.PI, -0.5), Q(RW + 0.03, Math.PI / 2, 0.36)], M.red, 0.006));
+  g.add(dots([Q(RW + 0.03, 0, 0.36), Q(RW + 0.03, Math.PI, 0.36), Q(RW + 0.03, -Math.PI / 2, 0.36)], M.lamp, 0.008));
+  g.userData.spin = [[spinW, 0.05], [spinH, -0.1]];      // 绕各自局部 X 轴
   return g;
 }
 

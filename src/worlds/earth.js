@@ -203,15 +203,22 @@ export class EarthWorld {
       red: this.mats.red,
     };
     this.arkMats = M;
+    // 领航员号：片中是深枪灰蓝色钢结构
+    this.navMats = {
+      hull: applyTriplanar(std({ color: 0x7a8592, metalness: 0.5, roughness: 0.45, emissive: 0x1a2028 }), plate, { scale: 0.32, panels: 1.4 }),
+      dark: applyTriplanar(std({ color: 0x3a424c, metalness: 0.55, roughness: 0.5, emissive: 0x0e1218 }), shutter, { scale: 0.45 }),
+      steel: applyTriplanar(std({ color: 0x9aa6b2, metalness: 0.6, roughness: 0.38, emissive: 0x202830 }), blue, { scale: 0.8, blend: 0.5 }),
+      warm: M.warm, lamp: M.lamp, red: M.red,
+    };
     return M;
   }
 
   _buildFleet() {
     // 领航员国际空间站（片中是单座空间站，没有护航舰队）；沿用 this.fleet 作为它的位姿节点
     this.fleet = new THREE.Group(); this.scene.add(this.fleet);
-    const nav = buildNavigator(this.arkMats); nav.scale.setScalar(0.85); this.fleet.add(nav); this.flagship = nav;
+    const nav = buildNavigator(this.navMats); nav.scale.setScalar(0.85); this.fleet.add(nav); this.flagship = nav;
     this.fleetPlumes = new Plumes(4, { core: 0xe8f4ff, edge: 0x3d7bff, alt: 0x7d6bff, gain: 1.4, grow: 0.5 });
-    this.fleetPlumes.add(V(-0.44, 0, 0), V(-1, 0, 0), 1.0, 0.04, -1, 0.3);
+    this.fleetPlumes.add(V(-0.44, 0, 0), V(-1, 0, 0), 1.0, 0.05, -1, 0.3);
     this.fleetPlumes.commit(); this.fleet.add(this.fleetPlumes.mesh);
     // 局部 +X 是船头：对准前进方向，局部 +Y 尽量保持朝上
     this.fleet.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(FWD, UPF, FWD.clone().cross(UPF)));
@@ -400,8 +407,8 @@ export class EarthWorld {
       // 05 领航员国际空间站
       [30.0, 36.4, (u) => {
         const Fl = this.fleet; Fl.updateMatrixWorld();
-        const c = Fl.localToWorld(V(lerp(1.0, 0.35, u), lerp(0.22, 0.16, u), lerp(0.75, 0.9, u)));
-        return { pos: c, look: Fl.localToWorld(V(-0.1 - u * 0.15, -0.02, 0)), fov: 44, up: UPF };
+        const c = Fl.localToWorld(V(lerp(1.05, 0.7, u), lerp(0.34, 0.26, u), lerp(1.2, 1.25, u)));
+        return { pos: c, look: Fl.localToWorld(V(0.12, -0.04, -0.05)), fov: 44, up: UPF };
       }],
       // 08 木星引力弹射
       [52.0, 60.0, (u) => {
