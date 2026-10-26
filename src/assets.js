@@ -13,6 +13,10 @@ const LIST = {
   sun: ['sun.jpg', true], mars: ['mars.jpg', true], mercury: ['mercury.jpg', true],
   venus: ['venus.jpg', true], uranus: ['uranus.jpg', true], neptune: ['neptune.jpg', true],
   milkyway: ['milkyway_eso.jpg', true],
+  // 方舟号站体 PBR（Poly Haven CC0）
+  pbr_plate_diff: ['pbr/metal_plate_02_diff_1k.jpg', true], pbr_plate_nor: ['pbr/metal_plate_02_nor_gl_1k.jpg', false], pbr_plate_arm: ['pbr/metal_plate_02_arm_1k.jpg', false],
+  pbr_shutter_diff: ['pbr/painted_metal_shutter_diff_1k.jpg', true], pbr_shutter_nor: ['pbr/painted_metal_shutter_nor_gl_1k.jpg', false], pbr_shutter_arm: ['pbr/painted_metal_shutter_arm_1k.jpg', false],
+  pbr_blue_diff: ['pbr/blue_metal_plate_diff_1k.jpg', true], pbr_blue_nor: ['pbr/blue_metal_plate_nor_gl_1k.jpg', false], pbr_blue_arm: ['pbr/blue_metal_plate_arm_1k.jpg', false],
 };
 
 export function loadTextures(renderer, onProgress) {

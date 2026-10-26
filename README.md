@@ -42,7 +42,7 @@ npm run preview    # 本地预览打包结果
 
 | # | 章节 | 内容 |
 | --- | --- | --- |
-| 01 | 流浪地球 | 点火从重型阵列开始向整个半球蔓延；加蓬外海的太空电梯全线贯通，攀爬舱升到同步轨道；天枢站双环反向旋转；领航员号舰队 |
+| 01 | 流浪地球 | 点火从重型阵列开始向整个半球蔓延；加蓬外海的太空电梯全线贯通，攀爬舱升到同步轨道；方舟号国际空间站双环反向旋转；领航员号舰队 |
 | 02 | 太阳系 | 时间压缩下的太阳系俯瞰与地球外旋航迹；衰老的太阳（米粒组织、黑子、日珥、日冕物质抛射）；木星引力弹射；土星环 |
 | 03 | 超越外行星 | 海王星；柯伊伯带冰屑；越过日球层顶 |
 | 04 | 星际航行 | 冰封的地球与地下城灯网；弓形激波与极光；渐亮的比邻星 |
@@ -59,7 +59,7 @@ src/hud.js              仪表盘：推进 / 导航面板、雷达、波形、�
 src/audio.js            生成式配乐（Web Audio）
 src/assets.js           贴图加载（8K 贴图优先 KTX2，不支持时回退 JPG）
 src/data/near-stars.js  HYG 星表中 100 光年内的恒星（由 tools/near-stars.mjs 生成）
-src/worlds/earth.js     地球世界（1 单位 = 地球半径）：地球着色器、发动机网络、电梯、天枢站、舰队、行星飞掠、星际特效
+src/worlds/earth.js     地球世界（1 单位 = 地球半径）：地球着色器、发动机网络、电梯、方舟号、舰队、行星飞掠、星际特效
 src/worlds/solar.js     太阳系世界（艺术化尺度 R = 6·r^0.6）
 src/worlds/galaxy.js    银河世界（1 单位 = 1 光年）
 src/fx/plumes.js        等离子光柱：沿轴朝向相机的实例化条带，一次 draw call 画上万条
@@ -101,3 +101,8 @@ basisu -uastc -uastc_level 2 -mipmap -y_flip -linear -ktx2 earth_clouds.jpg
 - 代码：MIT
 
 本作品是受《流浪地球》启发的同人创作，与电影出品方及版权方无关。
+
+
+## 方舟号站体
+
+站体造型参考 oxomkbk/earth-migration（MIT）的同步轨道站；三向投影 PBR 着色移植自同项目 `js/fx/triplanar.js`。贴图 `public/assets/tex/pbr/` 来自 Poly Haven（metal_plate_02、painted_metal_shutter、blue_metal_plate），CC0。

@@ -200,25 +200,91 @@ export function buildEscort(mats, seed = 1) {
   return k.build(mats);
 }
 
-// 天枢站：中心枢纽 + 双反向旋转环
-export function buildTianshu(mats) {
-  const hub = new Kit();
-  hub.cyl('hull', 0.05, 0.05, 0.5, [0, 0, 0], null, 24);
-  hub.cyl('white', 0.08, 0.08, 0.08, [0, 0.12, 0], null, 24);
-  hub.cyl('white', 0.08, 0.08, 0.08, [0, -0.12, 0], null, 24);
-  for (let i = 0; i < 4; i++) { const a = i / 4 * Math.PI * 2; hub.box('dark', [0.28, 0.02, 0.02], [Math.cos(a) * 0.14, 0.24, Math.sin(a) * 0.14], [0, -a, 0]); hub.box('glow', [0.01, 0.01, 0.01], [Math.cos(a) * 0.28, 0.24, Math.sin(a) * 0.28]); }
-  for (const s of [-1, 1]) hub.box('panel', [0.5, 0.004, 0.16], [s * 0.36, -0.3, 0]);
-  const hubG = hub.build(mats);
-  const ring = (R, y) => {
-    const k = new Kit();
-    k.torus('hull', R, 0.03, [0, y, 0], [Math.PI / 2, 0, 0], 120);
-    for (let i = 0; i < 36; i++) { const a = i / 36 * Math.PI * 2; k.box(i % 3 ? 'hull' : 'white', [0.07, 0.06, 0.09], [Math.cos(a) * R, y, Math.sin(a) * R], [0, -a, 0]); }
-    for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; k.box('dark', [R, 0.012, 0.012], [Math.cos(a) * R / 2, y, Math.sin(a) * R / 2], [0, -a, 0]); }
-    return k.build(mats);
+// 方舟号国际空间站（《流浪地球2》同步轨道站）：轴向中枢 + 太阳翼 + 散热板 + 两个反向旋转的重力环。
+// 造型参考 oxomkbk/earth-migration 的 buildApexStation / makeGravityRing（MIT）；以“站体单位”建模（大环半径 12.5），
+// 外层再整体缩放到原天枢站的尺寸（大环半径 0.42），三向投影贴图按站体单位取样，不会被拉伸。
+// M：{ hull, dark, white, gold, panel, warm, lamp, red }，hull/dark/white 已套 PBR 三向投影
+export function buildArk(M) {
+  const add = (parent, geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); parent.add(m); return m;
   };
-  const r1 = ring(0.42, 0.12), r2 = ring(0.42, -0.12);
-  const g = new THREE.Group(); g.add(hubG, r1, r2);
-  g.userData.rings = [r1, r2];
+  // 同材质合并成一个 draw call
+  const bake = (grp) => {
+    grp.updateMatrixWorld(true);
+    const by = new Map();
+    grp.traverse((o) => { if (!o.isMesh) return; const g = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld); for (const k of Object.keys(g.attributes)) if (!['position', 'normal', 'uv'].includes(k)) g.deleteAttribute(k); (by.get(o.material) || by.set(o.material, []).get(o.material)).push(g); });
+    const out = new THREE.Group();
+    for (const [mat, list] of by) out.add(new THREE.Mesh(mergeGeometries(list, false), mat));
+    return out;
+  };
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const lathe = (pts, seg) => new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), seg);
+  const dots = (list, mat, size) => {
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(size, size, size), mat, list.length), m4 = new THREE.Matrix4();
+    list.forEach((p, i) => { m4.makeTranslation(p.x, p.y, p.z); im.setMatrixAt(i, m4); });
+    return im;
+  };
+  const gravityRing = (r, tube, spokes, windows) => {
+    const ring = new THREE.Group(), s = new THREE.Group();
+    add(s, new THREE.TorusGeometry(r, tube, 18, 160), M.hull, 0, 0, 0, Math.PI / 2);
+    add(s, new THREE.TorusGeometry(r, tube * 0.28, 8, 160), M.dark, 0, tube * 0.85, 0, Math.PI / 2);
+    add(s, new THREE.TorusGeometry(r, tube * 0.28, 8, 160), M.dark, 0, -tube * 0.85, 0, Math.PI / 2);
+    add(s, new THREE.TorusGeometry(r + tube * 0.95, tube * 0.12, 6, 160), M.gold, 0, 0, 0, Math.PI / 2);
+    for (let i = 0; i < spokes; i++) {
+      const a = i / spokes * Math.PI * 2;
+      add(s, new THREE.CylinderGeometry(tube * 0.22, tube * 0.22, r, 10), i % 2 ? M.hull : M.dark, Math.cos(a) * r / 2, 0, Math.sin(a) * r / 2, 0, -a, Math.PI / 2);
+      add(s, new THREE.BoxGeometry(tube * 1.6, tube * 1.4, tube * 2.4), M.dark, Math.cos(a) * r, 0, Math.sin(a) * r, 0, -a, 0);
+    }
+    ring.add(bake(s));
+    // 舷窗：沿外缘两排，暖色为主
+    const win = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, tube * 0.32, tube * 0.42), M.warm, windows);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+    for (let i = 0; i < windows; i++) {
+      const a = i / windows * Math.PI * 2, y = (i % 2 ? 0.28 : -0.28) * tube;
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a);
+      m4.compose(new THREE.Vector3(Math.cos(a) * (r + tube * 0.98), y, Math.sin(a) * (r + tube * 0.98)), q, one);
+      win.setMatrixAt(i, m4);
+    }
+    ring.add(win);
+    return ring;
+  };
+  const solarWing = (len, width, parent, x, y, z, ry) => {
+    const w = new THREE.Group(); w.position.set(x, y, z); w.rotation.y = ry; parent.add(w);
+    add(w, new THREE.BoxGeometry(len, 0.12, 0.12), M.dark, len / 2, 0, 0);
+    for (let i = 0; i < 4; i++) for (const sd of [1, -1]) add(w, new THREE.BoxGeometry(len / 4 - 0.15, 0.04, width), M.panel, len / 8 + i * len / 4, 0, sd * (width / 2 + 0.15));
+  };
+  const st = new THREE.Group();
+  // 中枢舱：上半球白色、下半球深色（缆索从下方接入）
+  add(st, new THREE.CylinderGeometry(1.7, 1.7, 9, 28), M.hull);
+  add(st, new THREE.SphereGeometry(1.7, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), M.hull, 0, 4.5, 0);
+  add(st, new THREE.SphereGeometry(1.7, 28, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), M.dark, 0, -4.5, 0);
+  for (const y of [-3.6, -0.2, 3.2]) add(st, new THREE.CylinderGeometry(2.35, 2.35, 0.55, 28), M.dark, 0, y, 0);
+  add(st, new THREE.CylinderGeometry(0.35, 0.35, 6, 10), M.dark, 0, 7.5, 0);
+  add(st, lathe([[0.05, 0], [1.2, 0.35], [2.2, 0.95], [2.4, 1.05]], 36), M.hull, 0, 10.2, 0, Math.PI);   // 顶部通信天线碟
+  for (let i = 0; i < 4; i++) {
+    const a = i / 4 * Math.PI * 2 + Math.PI / 4;
+    add(st, new THREE.BoxGeometry(5.5, 0.55, 0.55), M.hull, Math.cos(a) * 4.4, -5.2, Math.sin(a) * 4.4, 0, -a, 0);        // 对接臂
+    add(st, new THREE.CylinderGeometry(0.75, 0.75, 1.4, 16), M.dark, Math.cos(a) * 7.2, -5.2, Math.sin(a) * 7.2, 0, -a, Math.PI / 2);   // 对接口
+    add(st, new THREE.BoxGeometry(1.4, 0.9, 3.2), M.gold, Math.cos(a) * 2.6, 1.6, Math.sin(a) * 2.6, 0, -a, 0);           // 隔热包覆设备舱
+  }
+  solarWing(16, 2.6, st, 2.0, 5.6, 0, 0);
+  solarWing(16, 2.6, st, -2.0, 5.6, 0, Math.PI);
+  solarWing(12, 2.2, st, 0, 5.0, 2.0, -Math.PI / 2);
+  solarWing(12, 2.2, st, 0, 5.0, -2.0, Math.PI / 2);
+  for (let i = 0; i < 3; i++) add(st, new THREE.BoxGeometry(0.08, 6, 2.2), M.white, 0, -9.5 + i * 0.2, 0, 0, i * Math.PI / 3, 0);   // 散热板
+  const inner = new THREE.Group();
+  inner.add(bake(st));
+  const ringA = gravityRing(8.5, 0.62, 6, 80); ringA.position.y = -1.6;
+  const ringB = gravityRing(12.5, 0.72, 8, 120); ringB.position.y = 1.8;
+  inner.add(ringA, ringB);
+  // 外部照明与航行灯
+  const pts = [];
+  for (let i = 0; i < 48; i++) { const a = rnd() * Math.PI * 2, rad = [1.8, 2.4, 8.6, 12.6][i % 4]; pts.push(new THREE.Vector3(Math.cos(a) * rad, -5 + rnd() * 10, Math.sin(a) * rad)); }
+  inner.add(dots(pts, M.lamp, 0.07));
+  inner.add(dots([new THREE.Vector3(18, 5.6, 0), new THREE.Vector3(-18, 5.6, 0), new THREE.Vector3(0, 5, 14), new THREE.Vector3(0, 5, -14), new THREE.Vector3(0, 11.6, 0)], M.red, 0.14));
+  inner.scale.setScalar(0.42 / 12.5);
+  const g = new THREE.Group(); g.add(inner);
+  g.userData.rings = [ringA, ringB];
   return g;
 }
 

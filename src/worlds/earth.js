@@ -3,8 +3,9 @@ import * as THREE from 'three';
 import { Plumes } from '../fx/plumes.js';
 import { earthMaterial, cloudMaterial, atmosphereMaterial, planetMaterial, glowSprite, NOISE } from '../fx/shaders.js';
 import { skyDome, starPoints, streaks, shards, updateShards } from '../fx/space.js';
-import { materials, buildFlagship, buildEscort, buildTianshu, buildClimber, buildTruss } from '../fx/kit.js';
+import { materials, buildFlagship, buildEscort, buildArk, buildClimber, buildTruss } from '../fx/kit.js';
 import { keyed } from '../story.js';
+import { pbrSet, applyTriplanar } from '../fx/triplanar.js';
 
 const D2R = Math.PI / 180;
 export const lonlat = (lon, lat, r = 1) => new THREE.Vector3(Math.cos(lat * D2R) * Math.cos(lon * D2R) * r, Math.sin(lat * D2R) * r, -Math.cos(lat * D2R) * Math.sin(lon * D2R) * r);
@@ -67,7 +68,7 @@ export class EarthWorld {
     this.atmo = new THREE.Mesh(new THREE.SphereGeometry(1.045, 128, 64), this.atmoMat); S.add(this.atmo);
 
     this._buildEngines(tex);
-    this._buildElevator();
+    this._buildElevator(tex);
     this._buildFleet();
     this._buildPlanets(tex);
     this._buildInterstellar();
@@ -154,7 +155,7 @@ export class EarthWorld {
     this.heroGlow.position.copy(heroV.clone().multiplyScalar(1.03)); this.earth.add(this.heroGlow);
   }
 
-  _buildElevator() {
+  _buildElevator(tex) {
     const a = lonlat(ANCHOR.lon, ANCHOR.lat);
     this.anchorV = a;
     const grp = new THREE.Group();
@@ -181,8 +182,27 @@ export class EarthWorld {
     // 攀爬舱
     this.climber = buildClimber(this.mats); this.climber.scale.setScalar(0.18); grp.add(this.climber);
     this.climberLight = glowSprite(new THREE.Color(1.6, 1.4, 1.1), 0.05, { power: 3 }); grp.add(this.climberLight);
-    // 天枢站
-    this.station = buildTianshu(this.mats); this.station.scale.setScalar(0.32); this.station.position.y = L; grp.add(this.station);
+    // 方舟号国际空间站：站体用独立材质（PBR 三向投影），不影响舰队与攀爬舱
+    this.station = buildArk(this._arkMats(tex)); this.station.scale.setScalar(0.32); this.station.position.y = L; grp.add(this.station);
+  }
+
+  _arkMats(tex) {
+    const plate = pbrSet(tex.pbr_plate_diff, tex.pbr_plate_nor, tex.pbr_plate_arm);
+    const shutter = pbrSet(tex.pbr_shutter_diff, tex.pbr_shutter_nor, tex.pbr_shutter_arm);
+    const blue = pbrSet(tex.pbr_blue_diff, tex.pbr_blue_nor, tex.pbr_blue_arm);
+    const std = (o) => new THREE.MeshStandardMaterial(o);
+    const M = {
+      hull: applyTriplanar(std({ color: 0xa4abb4, metalness: 0.15, roughness: 0.5, emissive: 0x3a4048 }), plate, { scale: 0.32, roughMul: 0.9, metalMul: 0.9, panels: 1.2 }),
+      dark: applyTriplanar(std({ color: 0x4e5560, metalness: 0.35, roughness: 0.55, emissive: 0x1c2026 }), shutter, { scale: 0.45 }),
+      white: applyTriplanar(std({ color: 0xd9dee4, metalness: 0.05, roughness: 0.42, emissive: 0x30343a }), blue, { scale: 0.8, metalMul: 0.5, blend: 0.5 }),
+      gold: std({ color: 0xd9a84e, metalness: 0.8, roughness: 0.35, emissive: 0x3a2a10 }),   // 背光一侧也留一点自发光，模拟地球反照
+      panel: this.mats.panel,
+      warm: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.9, 1.3, 0.7) }),
+      lamp: new THREE.MeshBasicMaterial({ color: new THREE.Color(3.0, 2.4, 1.6) }),
+      red: this.mats.red,
+    };
+    this.arkMats = M;
+    return M;
   }
 
   _buildFleet() {
@@ -362,7 +382,7 @@ export class EarthWorld {
         const c = hero.clone().multiplyScalar(lerp(1.62, 1.5, u)).addScaledVector(T, lerp(-0.62, -0.5, u)).addScaledVector(B, lerp(-0.3, -0.2, u));
         return { pos: c, look: hero.clone().multiplyScalar(1.12).addScaledVector(T, 0.05), fov: 40, up: hero };
       }],
-      // 02b 太空电梯全线贯通：赤道海上平台，缆索由下向上亮起，顶端天枢站组装
+      // 02b 太空电梯全线贯通：赤道海上平台，缆索由下向上亮起，顶端方舟号组装
       [12.4, 15.2, (u) => {
         const T = side(anchor), B = anchor.clone().cross(T);
         // 侧面宽景：地球边缘在画面下方，缆索从赤道平台向同步轨道生长
@@ -378,7 +398,7 @@ export class EarthWorld {
         const lk = anchor.clone().multiplyScalar(1 + h * 0.8 - 0.06 - u * 0.6);
         return { pos: c, look: lk, fov: lerp(52, 40, u), up: anchor, climb: h };
       }],
-      // 04 天枢站
+      // 04 方舟号
       [24.0, 30.0, (u) => {
         const top = anchor.clone().multiplyScalar(GEO);
         const T = side(anchor);
@@ -479,7 +499,7 @@ export class EarthWorld {
     this.plumeLight.position.copy(heroW.clone().multiplyScalar(1.2));
     this.plumeLight.intensity = (ch === 1 ? 2.5 * sstep(1, 6, t) : 0.6) * on;
 
-    // 电梯：12.4 秒前不存在；12.4–15.2 秒建造（缆索由下向上生长，顶端天枢站组装）；之后全程保留，深空段结霜变暗
+    // 电梯：12.4 秒前不存在；12.4–15.2 秒建造（缆索由下向上生长，顶端方舟号组装）；之后全程保留，深空段结霜变暗
     const L = this.elevL;
     const build = sstep(12.6, 14.6, t);
     this.elev.visible = t >= 12.4;
@@ -572,7 +592,7 @@ export class EarthWorld {
       { name: '重型发动机阵列', en: 'HEAVY ARRAY', get: () => ({ target: W(this.heroV).multiplyScalar(1.05), dist: 0.35 }) },
       { name: '赤道转向阵列', en: 'STEERING ARRAY', get: () => ({ target: W(lonlat(60, 0)).multiplyScalar(1.05), dist: 0.5 }) },
       { name: '太空电梯锚点', en: 'ANCHOR', get: () => ({ target: W(this.anchorV).multiplyScalar(1.03), dist: 0.22 }) },
-      { name: '天枢站', en: 'TIANSHU', get: () => ({ target: W(this.anchorV).multiplyScalar(GEO), dist: 0.7 }) },
+      { name: '方舟号', en: 'ARK STATION', get: () => ({ target: W(this.anchorV).multiplyScalar(GEO), dist: 0.7 }) },
       { name: '领航员号舰队', en: 'NAVIGATOR', get: () => ({ target: this.fleet.position.clone(), dist: 1.2 }) },
     ];
   }
