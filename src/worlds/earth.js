@@ -466,9 +466,9 @@ export class EarthWorld {
     const mu = this.earthMat.uniforms;
     mu.uSun.value.copy(sun); mu.uSunInt.value = sunInt; mu.uSunCol.value.copy(sunCol);
     mu.uFreeze.value = freeze; mu.uTime.value = clock; mu.uCloudRot.value = clock * 0.0015;
-    // 地表灯光：出发时残余城市灯 0.45，36 秒离轨后熄灭；冰封期只剩地下城出入口微光；比邻星泊入后（165 秒起）少量暖灯重新亮起
-    mu.uCity.value = keyed([[0, 0.45], [36, 0.45], [50, 0.0], [165, 0.0], [174, 0.3]], t);
-    mu.uUnder.value = keyed([[36, 0], [50, 1], [165, 1], [174, 0.5]], t);
+    // 地表灯光：出发时残余城市灯 0.45，36 秒离轨后熄灭；冰封期只剩地下城出入口微光；片尾也保持熄灭（不再用今天的城市夜光图）
+    mu.uCity.value = keyed([[0, 0.45], [36, 0.45], [50, 0.0]], t);
+    mu.uUnder.value = keyed([[36, 0], [50, 1]], t);
     const heroW = this.heroV.clone().applyQuaternion(E.quaternion);
     mu.uGlowCenter.value.copy(heroW);
     const engOn = 1 - sstep(51.4, 52.4, t) + sstep(59.6, 61.6, t);
