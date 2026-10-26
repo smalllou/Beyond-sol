@@ -221,6 +221,8 @@ export class EarthWorld {
     this.fleetPlumes = new Plumes(4, { core: 0xe8f4ff, edge: 0x3d7bff, alt: 0x7d6bff, gain: 1.4, grow: 0.5 });
     this.fleetPlumes.add(V(-0.44, 0, 0), V(-1, 0, 0), 1.0, 0.05, -1, 0.3);
     this.fleetPlumes.commit(); this.fleet.add(this.fleetPlumes.mesh);
+    // 深空补光：星际段阳光只剩十分之一，给领航员一盏冷色补光（只照亮近处的站体），否则在黑色地球前读不出轮廓
+    this.fleetFill = new THREE.PointLight(0xbfd4ff, 0, 2.5, 1.2); this.fleetFill.position.set(0.3, 0.6, 1.2); this.fleet.add(this.fleetFill);
     // 局部 +X 是船头：对准前进方向，局部 +Y 尽量保持朝上
     this.fleet.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(FWD, UPF, FWD.clone().cross(UPF)));
   }
@@ -583,7 +585,8 @@ export class EarthWorld {
     const fleetOn = (t >= 30 && t < 37) || (t >= 96 && t < 126);
     this.fleet.visible = fleetOn;
     if (t < 96) this.fleet.position.copy(FWD).multiplyScalar(4.6 + (t % 40) * 0.01).addScaledVector(SIDE, 1.7).addScaledVector(UPF, 0.4);
-    else this.fleet.position.copy(FWD).multiplyScalar(4.8).addScaledVector(SIDE, -0.9).addScaledVector(UPF, 1.0);
+    else this.fleet.position.copy(FWD).multiplyScalar(3.6).addScaledVector(SIDE, -1.9).addScaledVector(UPF, 0.75);   // 仍在地球航向正前方，只偏向镜头一侧，不压在地球轮廓上
+    this.fleetFill.intensity = t >= 96 && t < 126 ? 2.2 : 0;
     this.fleetPlumes.uniforms.uTime.value = clock; this.fleetPlumes.uniforms.uIgnite.value = 1e5;
     this.flagship.userData.spin.forEach(([o, w]) => { o.rotation.x = clock * w; });
 
