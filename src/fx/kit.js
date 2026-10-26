@@ -95,7 +95,7 @@ export class Kit {
 
 // 领航员国际空间站（《流浪地球》）：单座空间站，按片中镜头与官方 MENG MMS-002 模型还原。
 // 局部 +X 为船头。前端：巨型辐条轮（方截面格栅桁架外缘 + 三道同心桁架环 + 自行车式交叉密辐条 + 内环舱段模块）；
-// 中段：一道粗大的分节亮窗居住环，与大轮成约 65° 交错（陀螺仪式），主脊穿过其圆心；
+// 紧随大轮之后是一道粗大的分节亮窗居住环，与大轮同轴、都垂直于主脊；
 // 主脊：一串粗方盒格栅舱段；尾部：推进段，8 根向后掠的尖刺肋。整体深枪灰色钢结构，窗光暖黄。
 // M：{ hull, dark, steel, warm, lamp, red }
 export function buildNavigator(M) {
@@ -171,11 +171,11 @@ export function buildNavigator(M) {
   wheel.add(dots(wl, M.warm, 0.004));
   wheel.updateMatrixWorld(true);
   const wheelB = bake(wheel); wheelB.add(wheel.children.find(c => c.isInstancedMesh));
-  const spinW = new THREE.Group(); spinW.position.x = 0.38; spinW.add(wheelB); g.add(spinW);
+  const spinW = new THREE.Group(); spinW.position.x = 0.4; spinW.add(wheelB); g.add(spinW);
 
   // —— 2. 亮窗居住环：粗方截面、分节，与大轮成约 65°
   const hab = new THREE.Group();
-  const RH = 0.42, NSEG = 44;
+  const RH = 0.33, NSEG = 40;
   for (let k = 0; k < NSEG; k++) {
     const a = (k + 0.5) / NSEG * Math.PI * 2, len = 2 * Math.PI * RH / NSEG;
     const p = new THREE.Vector3(0, Math.cos(a) * RH, Math.sin(a) * RH);
@@ -190,19 +190,7 @@ export function buildNavigator(M) {
   for (let k = 0; k < NSEG * 7; k++) { const a = (k + 0.5) / (NSEG * 7) * Math.PI * 2; if (k % 7 === 6 || rnd() < 0.12) continue; for (const sx of [0.026, -0.026]) hw.push(new THREE.Vector3(sx, Math.cos(a) * RH, Math.sin(a) * RH)); for (const rr of [RH + 0.022, RH - 0.022]) if (rnd() < 0.6) hw.push(new THREE.Vector3(0, Math.cos(a) * rr, Math.sin(a) * rr)); }
   habB.add(dots(hw, M.warm, 0.0042));
   const spinH = new THREE.Group(); spinH.add(habB);
-  const tiltH = new THREE.Group(); tiltH.position.x = 0.12; tiltH.rotation.z = 1.13; tiltH.add(spinH); g.add(tiltH);
-
-  // —— 2b. 第二道细环：与亮窗环交叉的大导轨环（官方模型顶部那道细弧）
-  const ring2 = new THREE.Group();
-  add(ring2, new THREE.TorusGeometry(0.48, 0.007, 6, 160), M.hull, 0, 0, 0, 0, Math.PI / 2);
-  add(ring2, new THREE.TorusGeometry(0.48, 0.004, 4, 160), M.dark, 0.014, 0, 0, 0, Math.PI / 2);
-  for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2; strut(ring2, Q(0.05, a, 0), Q(0.47, a, 0), 0.003, M.dark); }
-  ring2.updateMatrixWorld(true);
-  const r2B = bake(ring2);
-  const r2w = []; for (let k = 0; k < 60; k++) { const a = rnd() * Math.PI * 2; r2w.push(Q(0.48, a, 0.009)); }
-  r2B.add(dots(r2w, M.warm, 0.004));
-  const spin2 = new THREE.Group(); spin2.add(r2B);
-  const tilt2 = new THREE.Group(); tilt2.position.x = 0.02; tilt2.rotation.set(0.6, 0, -1.25); tilt2.add(spin2); g.add(tilt2);
+  const tiltH = new THREE.Group(); tiltH.position.x = 0.2; tiltH.rotation.z = 0; tiltH.add(spinH); g.add(tiltH);
 
   // —— 3. 主脊：粗方盒格栅舱段
   const st = new THREE.Group();
@@ -224,18 +212,18 @@ export function buildNavigator(M) {
   add(st, new THREE.CylinderGeometry(0.06, 0.04, 0.05, 20, 1, true), M.dark, -0.49, 0, 0, 0, 0, Math.PI / 2);
   for (let k = 0; k < 8; k++) {
     const a = k / 8 * Math.PI * 2, long = k % 2 === 0;
-    const p0 = Q(0.07, a, -0.33), p1 = Q(long ? 0.2 : 0.14, a, long ? -0.5 : -0.45);
+    const p0 = Q(0.07, a, -0.38), p1 = Q(long ? 0.24 : 0.16, a, long ? -0.43 : -0.41);
     const d = new THREE.Vector3().subVectors(p1, p0), len = d.length();
     const cone = new THREE.ConeGeometry(0.014, len, 4); cone.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, d.normalize())); cone.translate((p0.x + p1.x) / 2, (p0.y + p1.y) / 2, (p0.z + p1.z) / 2);
     st.add(new THREE.Mesh(cone, M.hull));
-    strut(st, Q(0.075, a, -0.45), p1, 0.003, M.dark);
+    strut(st, Q(0.075, a, -0.46), p1, 0.003, M.dark);
   }
   st.updateMatrixWorld(true);
   g.add(bake(st));
   // 航行灯
   g.add(dots([Q(0.2, 0, -0.5), Q(0.2, Math.PI, -0.5), Q(RW + 0.02, Math.PI / 2, 0.38)], M.red, 0.006));
   g.add(dots([Q(RW + 0.02, 0, 0.38), Q(RW + 0.02, Math.PI, 0.38), Q(RW + 0.02, -Math.PI / 2, 0.38)], M.lamp, 0.008));
-  g.userData.spin = [[spinW, 0.05], [spinH, -0.1], [spin2, 0.06]];      // 绕各自局部 X 轴
+  g.userData.spin = [[spinW, 0.05], [spinH, -0.1]];      // 绕各自局部 X 轴
   return g;
 }
 
