@@ -20,7 +20,7 @@ export function earthMaterial(tex) {
       uDay: { value: tex.earth_day }, uNight: { value: tex.earth_night }, uClouds: { value: tex.earth_clouds },
       uSpec: { value: tex.earth_spec }, uNormal: { value: tex.earth_normal },
       uSun: { value: new THREE.Vector3(1, 0, 0) }, uSunCol: { value: new THREE.Color(1, 0.97, 0.92) }, uSunInt: { value: 1.0 },
-      uFreeze: { value: 0 }, uCity: { value: 1 }, uTime: { value: 0 }, uCloudRot: { value: 0 }, uEngineGlow: { value: 0 },
+      uFreeze: { value: 0 }, uCity: { value: 1 }, uUnder: { value: 0 }, uTime: { value: 0 }, uCloudRot: { value: 0 }, uEngineGlow: { value: 0 },
       uGlowCenter: { value: new THREE.Vector3(0, 1, 0) },
     },
     vertexShader: /* glsl */`
@@ -38,7 +38,7 @@ export function earthMaterial(tex) {
       #include <common>
       #include <logdepthbuf_pars_fragment>
       uniform sampler2D uDay, uNight, uClouds, uSpec, uNormal;
-      uniform vec3 uSun, uSunCol, uGlowCenter; uniform float uSunInt, uFreeze, uCity, uTime, uCloudRot, uEngineGlow;
+      uniform vec3 uSun, uSunCol, uGlowCenter; uniform float uSunInt, uFreeze, uCity, uUnder, uTime, uCloudRot, uEngineGlow;
       varying vec2 vUv; varying vec3 vN; varying vec3 vW; varying vec3 vL;
       ${NOISE}
       void main(){
@@ -69,12 +69,15 @@ export function earthMaterial(tex) {
         vec3 H = normalize(uSun + V);
         float spec = pow(max(dot(N, H), 0.0), 60.0) * water * (1.0 - uFreeze * 0.7);
         col += uSunCol * uSunInt * spec * 0.45 * day;
-        // 夜面城市灯光（冰封后转为地下城的冷白色网络）
+        // 夜面灯光：出发时只剩稀疏的残余城市灯（地表已大规模撤入地下城），冰封后熄灭；
+        // 冰封期只留地下城出入口的零星冷色光点；抵达后（uCity 回升）亮起少量暖色返回地表的灯点
         vec3 night = texture2D(uNight, vUv).rgb;
-        vec3 cityCol = mix(vec3(1.0, 0.72, 0.38), vec3(0.55, 0.8, 1.25), uFreeze);
-        float nightMask = mix(1.0 - day, 1.0, uFreeze * 0.85);
+        float nightMask = 1.0 - day;
         float sparkle = 0.75 + 0.5 * vnoise(vL * 220.0 + uTime * 0.3);
-        col += night * night * cityCol * 2.6 * uCity * nightMask * sparkle;
+        float sparse = smoothstep(0.78, 0.86, vnoise(vL * 520.0));           // 只保留少数像素点，不成片
+        col += night * night * vec3(1.0, 0.72, 0.38) * 2.6 * uCity * nightMask * sparkle * mix(1.0, sparse, 0.6);
+        float hatch = smoothstep(0.86, 0.9, vnoise(vL * 900.0)) * step(0.25, night.r);
+        col += vec3(0.45, 0.7, 1.1) * hatch * uUnder * mix(nightMask, 1.0, 0.3) * 0.5;
         // 发动机群照亮地表
         float g = max(dot(N, normalize(uGlowCenter)), 0.0);
         col += vec3(0.42, 0.36, 1.0) * pow(g, 18.0) * uEngineGlow * 0.6;
