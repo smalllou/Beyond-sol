@@ -8,6 +8,7 @@ const lerp = (a, b, u) => a + (b - a) * u;
 const sstep = (a, b, x) => { const u = Math.min(1, Math.max(0, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
 const ENGINE_LON = 110 * Math.PI / 180; // 发动机半球中心经度（东亚）
 export const artR = (au) => 6 * Math.pow(au, 0.6);
+const T_FLY = 44.2; // 最后一个远日点，掠过木星（仍在全景镜头内，45.2 s 切太阳近景）
 
 const PLANETS = [
   // 名称, 贴图, AU, 半径, 公转周期（年）, 初相, 自转轴倾角（度，空间中固定）
@@ -90,27 +91,37 @@ export class SolarWorld {
     this.engines = this._engines(0.34); this.earth.add(this.engines);
     this.earthGlow = glowSprite(new THREE.Color(0.6, 0.75, 1.8), 2.4, { power: 3, opacity: 0.8 }); S.add(this.earthGlow);
     this.earthOrbit = this._orbit(artR(1), 0x9fc2ff, 0.5); S.add(this.earthOrbit);
-    // 木星引力弹弓：初相按地球约 47.5 s 穿越 5.2 AU 时的位置反推，让木星恰好在航线前方
+    this._buildPath();
+    // 木星引力弹弓：初相按地球最后一个远日点（T_FLY）的方位反推，木星恰在地球前方外侧
     const jup = this.planets.find((p) => p.key === 'jupiter');
-    const tJ = 36 + 16 * Math.log10(5.2);
-    jup.ph = this.ang(tJ) + 0.13 - ((tJ - 36) * (15 / 16)) / jup.per * Math.PI * 2;
-    // 完整航线：走过的亮青实线，前方暗淡流动虚线，终点小箭头（与原作一致的"计划航迹"）
-    const N = 900, pts = [], aS = new Float32Array(N + 1), aL = new Float32Array(N + 1);
-    for (let i = 0; i <= N; i++) { pts.push(this.pathPos(36 + 16 * i / N)); aS[i] = i / N; if (i) aL[i] = aL[i - 1] + pts[i].distanceTo(pts[i - 1]); }
+    const fa = this._fly.ang + 0.1;
+    jup.ph = fa - ((T_FLY - 36) * (15 / 16)) / jup.per * Math.PI * 2;
+    // 完整航线：走过的亮青实线，前方暗淡流动虚线；10 AU 之后继续斜向黄道面以南（比邻星方向）渐隐
+    const N = 1200, T1 = 64, pts = [], aS = new Float32Array(N + 1), aL = new Float32Array(N + 1), aF = new Float32Array(N + 1);
+    for (let i = 0; i <= N; i++) { const x = 36 + (T1 - 36) * i / N; pts.push(this.pathPos(x)); aS[i] = (x - 36) / 16; aF[i] = 1 - sstep(52, T1, x); if (i) aL[i] = aL[i - 1] + pts[i].distanceTo(pts[i - 1]); }
     const tg = new THREE.BufferGeometry().setFromPoints(pts);
-    tg.setAttribute('aS', new THREE.BufferAttribute(aS, 1)); tg.setAttribute('aL', new THREE.BufferAttribute(aL, 1));
+    tg.setAttribute('aS', new THREE.BufferAttribute(aS, 1)); tg.setAttribute('aL', new THREE.BufferAttribute(aL, 1)); tg.setAttribute('aF', new THREE.BufferAttribute(aF, 1));
     this.trackMat = new THREE.ShaderMaterial({
       uniforms: { uProg: { value: 0 }, uA: { value: 0 }, uTime: { value: 0 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-      vertexShader: 'attribute float aS; attribute float aL; varying float vS; varying float vL; void main(){ vS = aS; vL = aL; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform float uProg, uA, uTime; varying float vS; varying float vL;
+      vertexShader: 'attribute float aS; attribute float aL; attribute float aF; varying float vS; varying float vL; varying float vF; void main(){ vS = aS; vL = aL; vF = aF; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform float uProg, uA, uTime; varying float vS; varying float vL; varying float vF;
         void main(){ float past = step(vS, uProg); float dash = step(0.45, fract(vL / 1.1 - uTime * 0.5));
-          vec3 c = mix(vec3(0.55, 0.9, 1.7) * 0.9 * dash, vec3(1.0, 1.7, 2.8), past);
-          gl_FragColor = vec4(c * uA, 1.0); }`,
+          vec3 c = mix(vec3(0.6, 1.0, 1.9) * 1.1 * dash, vec3(1.0, 1.7, 2.8), past);
+          gl_FragColor = vec4(c * uA * vF, 1.0); }`,
     });
     this.track = new THREE.Line(tg, this.trackMat); this.track.frustumCulled = false; S.add(this.track);
-    const end = pts[N], dirE = end.clone().sub(pts[N - 6]).normalize();
-    this.trackArrow = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.4, 16).translate(0, 0.7, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.32, 0.55, 1.0), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    this.trackArrow.position.copy(end); this.trackArrow.quaternion.setFromUnitVectors(V(0, 1, 0), dirE); S.add(this.trackArrow);
+    // 比邻星方向标注：放在 10 AU 之后的航线上
+    const lp = this.pathPos(59);
+    this.trackLabel = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
+    this.trackLabel.position.copy(lp); this.trackLabel.center.set(-0.06, 0.5); this.trackLabel.scale.set(20, 5, 1); S.add(this.trackLabel);
+    const drawLabel = () => {
+      const c = document.createElement('canvas'); c.width = 1024; c.height = 256; const g = c.getContext('2d');
+      g.fillStyle = 'rgba(200,228,255,0.95)'; g.font = '600 76px SC, sans-serif'; g.textBaseline = 'middle'; g.fillText('比邻星 · 4.3 光年', 8, 92);
+      g.fillStyle = 'rgba(160,200,255,0.75)'; g.font = '500 44px Raj, sans-serif'; g.fillText('PROXIMA CENTAURI  ·  4.3 LY', 10, 184);
+      const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; this.trackLabel.material.map = tx; this.trackLabel.material.needsUpdate = true;
+    };
+    drawLabel();
+    if (document.fonts) document.fonts.load('600 76px SC', '比邻星光年').then(drawLabel).catch(() => {});
     // 小行星带与柯伊伯带
     S.add(this._belt(5200, 2.1, 3.3, 0.18, 0x9a8a78, 1.6));
     S.add(this._belt(9000, 32, 50, 1.8, 0x6f86a8, 1.4));
@@ -247,13 +258,45 @@ export class SolarWorld {
     return g;
   }
 
-  // 外旋螺线：角速度按开普勒定律随距离减慢（ω ∝ r^-1.5），1→10 AU 共约三圈；约 47.5 s 掠过木星时多拐 0.3 rad（引力弹弓）
-  ang(x) {
-    const K = 1.5 * Math.LN10 / 16, W = 0.7 * Math.PI * 2 * (15 / 16);
-    return 2.0 + (x < 36 ? 0 : W * (1 - Math.exp(-K * Math.min(x - 36, 16))) / K) + 0.3 * sstep(47.0, 48.4, x);
+  // 航迹（据原著与电影）：逃逸时代地球绕太阳越转越扁的椭圆加速（原著 15 圈，这里画 3.5 圈代表），近日点约 1 AU，
+  // 最后一圈的远日点到达木星轨道，擦过木星借引力弹弓甩出，随后近乎直线斜向黄道面以南的比邻星方向飞去
+  _buildPath() {
+    const LAPS = 3.5, PH = LAPS * Math.PI * 2, M = 4000, QF = 4.9;
+    const Q = (f) => 1 + (QF - 1) * Math.pow(f, 1.35);
+    const rAU = (f) => { const q = 1, Qf = Q(f), c = Math.cos(f * PH); return 2 * q * Qf / ((Qf + q) + (Qf - q) * c); };
+    // 开普勒第二定律：dt ∝ r² dφ
+    const cum = new Float64Array(M + 1);
+    for (let i = 1; i <= M; i++) { const f = (i - 0.5) / M; const r = rAU(f); cum[i] = cum[i - 1] + r * r; }
+    this._lap = { M, cum, tot: cum[M], rAU, PH };
+    const A0 = 2.0;
+    const fly = this._lapPos(1);
+    const R = fly.length(), ang = Math.atan2(fly.z, fly.x);
+    const radial = V(Math.cos(ang), 0, Math.sin(ang)), pro = V(-Math.sin(ang), 0, Math.cos(ang));
+    // 甩出方向：外向偏前进方向 40°，再压到黄道面以南 44.8°（比邻星黄纬约 −44.8°）
+    const hz = radial.clone().multiplyScalar(Math.cos(0.7)).addScaledVector(pro, Math.sin(0.7)).normalize();
+    const lat = -44.8 * Math.PI / 180, D = hz.multiplyScalar(Math.cos(lat)).add(V(0, Math.sin(lat), 0)).normalize();
+    this._fly = { P: fly, ang, R, pro, D, A0 };
   }
-  pathPos(x) { const r = artR(this.earthAU(x)), a = this.ang(Math.max(x, 36)); return V(Math.cos(a) * r, 0, Math.sin(a) * r); }
-  earthAU(t) { return t < 36 ? 1 : Math.pow(10, Math.min(1, (t - 36) / 16)); }
+  _lapPos(f) {
+    const L = this._lap, r = artR(L.rAU(f)), a = 2.0 + f * L.PH;
+    return V(Math.cos(a) * r, 0, Math.sin(a) * r);
+  }
+  pathPos(x) {
+    if (x <= 36) return this._lapPos(0);
+    if (x <= T_FLY) {
+      const L = this._lap, target = (x - 36) / (T_FLY - 36) * L.tot;
+      let lo = 0, hi = L.M; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (L.cum[m] < target) lo = m; else hi = m; }
+      const f = (lo + (target - L.cum[lo]) / Math.max(1e-9, L.cum[hi] - L.cum[lo])) / L.M;
+      return this._lapPos(f);
+    }
+    // 掠过木星后：Hermite 曲线从远日点的切向转到甩出方向，之后匀速直线
+    const F = this._fly, u = Math.min(1, (x - T_FLY) / 3), LEN = 9;
+    const P0 = F.P, P1 = F.P.clone().addScaledVector(F.D, LEN), T0 = F.pro.clone().multiplyScalar(LEN * 0.9), T1 = F.D.clone().multiplyScalar(LEN);
+    if (x - T_FLY >= 3) return P1.clone().addScaledVector(F.D, (x - T_FLY - 3) * LEN / 3 * 0.9);
+    const h00 = 2 * u ** 3 - 3 * u ** 2 + 1, h10 = u ** 3 - 2 * u ** 2 + u, h01 = -2 * u ** 3 + 3 * u ** 2, h11 = u ** 3 - u ** 2;
+    return P0.clone().multiplyScalar(h00).addScaledVector(T0, h10).addScaledVector(P1, h01).addScaledVector(T1, h11);
+  }
+  earthAU(t) { const r = this.pathPos(t).length(); return Math.pow(r / 6, 1 / 0.6); }
 
   shot(t) {
     if (t >= 36 && t < 45.2) {
@@ -301,23 +344,20 @@ export class SolarWorld {
     }
     // 地球：沿外旋螺线离开
     const au = this.earthAU(t);
-    const R = artR(au);
-    const ang = (x) => this.ang(x);
     // 航线：拉远结束后淡入，太阳近景时调暗
     const tA = sstep(37.6, 40, t) * (t >= 45.2 && t < 52.5 ? 0.3 : 1);
     this.trackMat.uniforms.uA.value = tA; this.trackMat.uniforms.uProg.value = Math.min(1, Math.max(0, (t - 36) / 16)); this.trackMat.uniforms.uTime.value = clock;
-    this.trackArrow.material.opacity = tA * 0.8; this.track.visible = this.trackArrow.visible = tA > 0.002;
-    const a = ang(Math.max(t, 36));
-    this.earth.position.set(Math.cos(a) * R, 0, Math.sin(a) * R);
+    this.track.visible = tA > 0.002;
+    this.trackLabel.material.opacity = tA * sstep(39, 42, t) * (t >= 45.2 && t < 52.5 ? 0 : 0.9); this.trackLabel.visible = this.trackLabel.material.opacity > 0.002;
+    this.earth.position.copy(this.pathPos(t));
     // 刹车时代已停转：不再自转，发动机半球（东亚）始终朝向航迹后方，喷流逆着前进方向
-    const t2 = Math.max(t, 36) + 0.05, a2 = ang(t2), R2 = artR(this.earthAU(t2));
-    const back = this.earth.position.clone().sub(V(Math.cos(a2) * R2, 0, Math.sin(a2) * R2));
-    if (back.lengthSq() < 1e-10) back.set(-Math.sin(a), 0, Math.cos(a)); // 出发前：沿切向反方向
+    const back = this.earth.position.clone().sub(this.pathPos(Math.max(t, 36) + 0.05)); back.y = 0;
+    if (back.lengthSq() < 1e-10) { const a = Math.atan2(this.earth.position.z, this.earth.position.x); back.set(-Math.sin(a), 0, Math.cos(a)); } // 出发前：沿切向反方向
     back.normalize();
     this.earth.rotation.y = Math.atan2(-back.z, back.x) - ENGINE_LON;
     this.earth.material.uniforms.uSun.value.copy(this.earth.position.clone().negate().normalize());
-    // 冰封随距离：1 AU 无冰，约 2 AU 开始变白，到木星轨道（约 5 AU）全白
-    this.earth.material.uniforms.uFreeze.value = 0.001 + sstep(1.8, 5, au) * 0.95;
+    // 冰封：椭圆轨道会反复回到近日点，改按远日点逐圈外推的时间推进（约 2 AU 起变白，到木星时全白），不随单圈来回解冻
+    this.earth.material.uniforms.uFreeze.value = 0.001 + sstep(38.5, T_FLY, t) * 0.95; void au;
     this.engineMat.uniforms.uTime.value = clock;
     this.earthGlow.position.copy(this.earth.position);
     // 拉近时收起远景光晕，避免像旁边多了个光源
