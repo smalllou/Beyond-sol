@@ -90,9 +90,27 @@ export class SolarWorld {
     this.engines = this._engines(0.34); this.earth.add(this.engines);
     this.earthGlow = glowSprite(new THREE.Color(0.6, 0.75, 1.8), 2.4, { power: 3, opacity: 0.8 }); S.add(this.earthGlow);
     this.earthOrbit = this._orbit(artR(1), 0x9fc2ff, 0.5); S.add(this.earthOrbit);
-    this.trailN = 600;
-    this.trail = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: 0xd8e8ff, dashSize: 0.5, gapSize: 0.35, transparent: true, opacity: 0.9 }));
-    S.add(this.trail);
+    // 木星引力弹弓：初相按地球约 47.5 s 穿越 5.2 AU 时的位置反推，让木星恰好在航线前方
+    const jup = this.planets.find((p) => p.key === 'jupiter');
+    const tJ = 36 + 16 * Math.log10(5.2);
+    jup.ph = this.ang(tJ) + 0.13 - ((tJ - 36) * (15 / 16)) / jup.per * Math.PI * 2;
+    // 完整航线：走过的亮青实线，前方暗淡流动虚线，终点小箭头（与原作一致的"计划航迹"）
+    const N = 900, pts = [], aS = new Float32Array(N + 1), aL = new Float32Array(N + 1);
+    for (let i = 0; i <= N; i++) { pts.push(this.pathPos(36 + 16 * i / N)); aS[i] = i / N; if (i) aL[i] = aL[i - 1] + pts[i].distanceTo(pts[i - 1]); }
+    const tg = new THREE.BufferGeometry().setFromPoints(pts);
+    tg.setAttribute('aS', new THREE.BufferAttribute(aS, 1)); tg.setAttribute('aL', new THREE.BufferAttribute(aL, 1));
+    this.trackMat = new THREE.ShaderMaterial({
+      uniforms: { uProg: { value: 0 }, uA: { value: 0 }, uTime: { value: 0 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+      vertexShader: 'attribute float aS; attribute float aL; varying float vS; varying float vL; void main(){ vS = aS; vL = aL; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform float uProg, uA, uTime; varying float vS; varying float vL;
+        void main(){ float past = step(vS, uProg); float dash = step(0.45, fract(vL / 1.1 - uTime * 0.5));
+          vec3 c = mix(vec3(0.55, 0.9, 1.7) * 0.9 * dash, vec3(1.0, 1.7, 2.8), past);
+          gl_FragColor = vec4(c * uA, 1.0); }`,
+    });
+    this.track = new THREE.Line(tg, this.trackMat); this.track.frustumCulled = false; S.add(this.track);
+    const end = pts[N], dirE = end.clone().sub(pts[N - 6]).normalize();
+    this.trackArrow = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.4, 16).translate(0, 0.7, 0), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.32, 0.55, 1.0), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    this.trackArrow.position.copy(end); this.trackArrow.quaternion.setFromUnitVectors(V(0, 1, 0), dirE); S.add(this.trackArrow);
     // 小行星带与柯伊伯带
     S.add(this._belt(5200, 2.1, 3.3, 0.18, 0x9a8a78, 1.6));
     S.add(this._belt(9000, 32, 50, 1.8, 0x6f86a8, 1.4));
@@ -229,6 +247,12 @@ export class SolarWorld {
     return g;
   }
 
+  // 外旋螺线：角速度按开普勒定律随距离减慢（ω ∝ r^-1.5），1→10 AU 共约三圈；约 47.5 s 掠过木星时多拐 0.3 rad（引力弹弓）
+  ang(x) {
+    const K = 1.5 * Math.LN10 / 16, W = 0.7 * Math.PI * 2 * (15 / 16);
+    return 2.0 + (x < 36 ? 0 : W * (1 - Math.exp(-K * Math.min(x - 36, 16))) / K) + 0.3 * sstep(47.0, 48.4, x);
+  }
+  pathPos(x) { const r = artR(this.earthAU(x)), a = this.ang(Math.max(x, 36)); return V(Math.cos(a) * r, 0, Math.sin(a) * r); }
   earthAU(t) { return t < 36 ? 1 : Math.pow(10, Math.min(1, (t - 36) / 16)); }
 
   shot(t) {
@@ -278,12 +302,11 @@ export class SolarWorld {
     // 地球：沿外旋螺线离开
     const au = this.earthAU(t);
     const R = artR(au);
-    const pts = [];
-    // 外旋螺线：角速度按开普勒定律随距离减慢（ω ∝ r^-1.5），1→10 AU 共约三圈，与 2079–2093 的十四年相称
-    const K = 1.5 * Math.LN10 / 16, W = 0.7 * Math.PI * 2 * (15 / 16);
-    const ang = (x) => 2.0 + (x < 36 ? 0 : W * (1 - Math.exp(-K * Math.min(x - 36, 16))) / K);
-    for (let i = 0; i <= this.trailN; i++) { const x = 36 + (Math.max(t, 36) - 36) * i / this.trailN; const r = artR(this.earthAU(x)); const a = ang(x); pts.push(new THREE.Vector3(Math.cos(a) * r, 0, Math.sin(a) * r)); }
-    this.trail.geometry.setFromPoints(pts); this.trail.computeLineDistances();
+    const ang = (x) => this.ang(x);
+    // 航线：拉远结束后淡入，太阳近景时调暗
+    const tA = sstep(37.6, 40, t) * (t >= 45.2 && t < 52.5 ? 0.3 : 1);
+    this.trackMat.uniforms.uA.value = tA; this.trackMat.uniforms.uProg.value = Math.min(1, Math.max(0, (t - 36) / 16)); this.trackMat.uniforms.uTime.value = clock;
+    this.trackArrow.material.opacity = tA * 0.8; this.track.visible = this.trackArrow.visible = tA > 0.002;
     const a = ang(Math.max(t, 36));
     this.earth.position.set(Math.cos(a) * R, 0, Math.sin(a) * R);
     // 刹车时代已停转：不再自转，发动机半球（东亚）始终朝向航迹后方，喷流逆着前进方向
