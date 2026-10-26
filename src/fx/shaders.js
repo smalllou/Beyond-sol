@@ -148,9 +148,9 @@ export function atmosphereMaterial(color = new THREE.Color(0.3, 0.58, 1.0), powe
 }
 
 // 通用行星（贴图 + 晨昏线 + 边缘光）
-export function planetMaterial(map, { rim = new THREE.Color(0.5, 0.6, 0.9), rimGain = 0.4, emissive = 0, grade = 0 } = {}) {
+export function planetMaterial(map, { rim = new THREE.Color(0.5, 0.6, 0.9), rimGain = 0.4, emissive = 0, grade = 0, freeze = 0 } = {}) {
   return new THREE.ShaderMaterial({
-    uniforms: { uMap: { value: map }, uSun: { value: new THREE.Vector3(1, 0, 0) }, uSunInt: { value: 1 }, uRim: { value: rim }, uRimGain: { value: rimGain }, uEmi: { value: emissive }, uRingShadow: { value: 0 }, uRingN: { value: new THREE.Vector3(0, 1, 0) }, uCenter: { value: new THREE.Vector3() }, uGrade: { value: grade } },
+    uniforms: { uMap: { value: map }, uSun: { value: new THREE.Vector3(1, 0, 0) }, uSunInt: { value: 1 }, uRim: { value: rim }, uRimGain: { value: rimGain }, uEmi: { value: emissive }, uRingShadow: { value: 0 }, uRingN: { value: new THREE.Vector3(0, 1, 0) }, uCenter: { value: new THREE.Vector3() }, uGrade: { value: grade }, uFreeze: { value: freeze } },
     vertexShader: /* glsl */`
       #include <common>
       #include <logdepthbuf_pars_vertex>
@@ -161,12 +161,17 @@ export function planetMaterial(map, { rim = new THREE.Color(0.5, 0.6, 0.9), rimG
     fragmentShader: /* glsl */`
       #include <common>
       #include <logdepthbuf_pars_fragment>
-      uniform sampler2D uMap; uniform vec3 uSun, uRim, uRingN, uCenter; uniform float uSunInt, uRimGain, uEmi, uRingShadow, uGrade;
+      uniform sampler2D uMap; uniform vec3 uSun, uRim, uRingN, uCenter; uniform float uSunInt, uRimGain, uEmi, uRingShadow, uGrade, uFreeze;
       varying vec2 vUv; varying vec3 vN; varying vec3 vW;
       void main(){
         #include <logdepthbuf_fragment>
         vec3 N = normalize(vN); vec3 V = normalize(cameraPosition - vW);
         vec3 c = texture2D(uMap, vUv).rgb;
+        if (uFreeze > 0.0) { // 流浪地球：随远离太阳逐步冰封
+          float lum = dot(c, vec3(0.3, 0.59, 0.11));
+          vec3 ice = mix(vec3(0.42, 0.52, 0.66), vec3(0.95, 0.97, 1.0), smoothstep(0.06, 0.4, lum));
+          c = mix(c, ice, uFreeze);
+        }
         if (uGrade > 0.0) { // 原著：暗红色木星
           float lum = dot(c, vec3(0.3, 0.59, 0.11));
           float warm = clamp((c.r - c.b) * 3.0, 0.0, 1.0); // 大红斑、橙色带

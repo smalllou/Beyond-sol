@@ -6,6 +6,7 @@ import { skyDome, starPoints } from '../fx/space.js';
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const lerp = (a, b, u) => a + (b - a) * u;
 const sstep = (a, b, x) => { const u = Math.min(1, Math.max(0, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
+const ENGINE_LON = 110 * Math.PI / 180; // 发动机半球中心经度（东亚）
 export const artR = (au) => 6 * Math.pow(au, 0.6);
 
 const PLANETS = [
@@ -85,13 +86,13 @@ export class SolarWorld {
       return o;
     });
     // 地球与其航迹
-    this.earth = new THREE.Mesh(new THREE.SphereGeometry(0.34, 64, 32), planetMaterial(tex.earth_day, { rim: new THREE.Color(0.4, 0.7, 1.4), rimGain: 1.2 })); S.add(this.earth);
+    this.earth = new THREE.Mesh(new THREE.SphereGeometry(0.34, 64, 32), planetMaterial(tex.earth_day, { rim: new THREE.Color(0.4, 0.7, 1.4), rimGain: 1.2, freeze: 0.001 })); S.add(this.earth);
+    this.engines = this._engines(0.34); this.earth.add(this.engines);
     this.earthGlow = glowSprite(new THREE.Color(0.6, 0.75, 1.8), 2.4, { power: 3, opacity: 0.8 }); S.add(this.earthGlow);
     this.earthOrbit = this._orbit(artR(1), 0x9fc2ff, 0.5); S.add(this.earthOrbit);
     this.trailN = 600;
     this.trail = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: 0xd8e8ff, dashSize: 0.5, gapSize: 0.35, transparent: true, opacity: 0.9 }));
     S.add(this.trail);
-    this.plume = glowSprite(new THREE.Color(0.7, 0.55, 2.0), 1.4, { power: 2, opacity: 0.6 }); S.add(this.plume);
     // 小行星带与柯伊伯带
     S.add(this._belt(5200, 2.1, 3.3, 0.18, 0x9a8a78, 1.6));
     S.add(this._belt(9000, 32, 50, 1.8, 0x6f86a8, 1.4));
@@ -176,6 +177,58 @@ export class SolarWorld {
   }
 
   // 影片时间 → 地球的日心距离（AU）
+  // 行星发动机：背向半球上的发动机光点 + 平行喷流束（作为地球子物体随之定向）
+  _engines(r) {
+    const g = new THREE.Group();
+    const axis = V(Math.cos(ENGINE_LON), 0, -Math.sin(ENGINE_LON)); // 本地坐标中东亚经度方向
+    const up = V(0, 1, 0), side = new THREE.Vector3().crossVectors(up, axis).normalize();
+    const rnd = (() => { let x = 20790; return () => (x = (x * 16807) % 2147483647) / 2147483647; })();
+    const pos = [], beam = [], idx = [];
+    const N = 46, L = 1.6;
+    for (let i = 0; i < N; i++) {
+      // 在半球中心 55° 范围内取点
+      const th = Math.acos(1 - rnd() * (1 - Math.cos(0.95))), ph = rnd() * Math.PI * 2;
+      const d = axis.clone().multiplyScalar(Math.cos(th)).addScaledVector(side, Math.sin(th) * Math.cos(ph)).addScaledVector(up, Math.sin(th) * Math.sin(ph)).normalize();
+      const p0 = d.clone().multiplyScalar(r * 1.003);
+      pos.push(p0.x, p0.y, p0.z);
+      // 每束喷流：沿发动机轴（平行）伸出，两片十字交叉面片
+      const w = 0.006 + rnd() * 0.006, len = L * (0.6 + rnd() * 0.5), seed = rnd();
+      for (const n of [side, up]) {
+        const b = beam.length / 6;
+        for (const [s, v] of [[-1, 0], [1, 0], [-1, 1], [1, 1]]) {
+          const q = p0.clone().addScaledVector(n, s * w * (1 + v * 2.5)).addScaledVector(axis, v * len);
+          beam.push(q.x, q.y, q.z, s, v, seed);
+        }
+        idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+      }
+    }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.add(new THREE.Points(pg, new THREE.PointsMaterial({ color: new THREE.Color(0.75, 0.85, 2.2), size: 0.025, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })));
+    const bg = new THREE.BufferGeometry();
+    const arr = new Float32Array(beam), P = [], A = [];
+    for (let i = 0; i < arr.length; i += 6) { P.push(arr[i], arr[i + 1], arr[i + 2]); A.push(arr[i + 3], arr[i + 4], arr[i + 5]); }
+    bg.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); bg.setAttribute('aB', new THREE.Float32BufferAttribute(A, 3)); bg.setIndex(idx);
+    this.engineMat = new THREE.ShaderMaterial({
+      uniforms: { uTime: { value: 0 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      vertexShader: `#include <common>
+        #include <logdepthbuf_pars_vertex>
+        attribute vec3 aB; varying vec3 vB; void main(){ vB = aB; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        #include <logdepthbuf_vertex>
+        }`,
+      fragmentShader: `#include <common>
+        #include <logdepthbuf_pars_fragment>
+        uniform float uTime; varying vec3 vB; void main(){
+        #include <logdepthbuf_fragment>
+        float across = 1.0 - abs(vB.x); across = across * across;
+        float along = pow(1.0 - vB.y, 1.6);
+        float flick = 0.85 + 0.15 * sin(uTime * 9.0 + vB.z * 40.0);
+        vec3 col = mix(vec3(1.4, 1.6, 2.6), vec3(0.45, 0.38, 1.9), vB.y);
+        gl_FragColor = vec4(col * across * along * flick * 0.55, 1.0); }`,
+    });
+    const beams = new THREE.Mesh(bg, this.engineMat); beams.frustumCulled = false; g.add(beams);
+    return g;
+  }
+
   earthAU(t) { return t < 36 ? 1 : Math.pow(10, Math.min(1, (t - 36) / 16)); }
 
   shot(t) {
@@ -224,10 +277,20 @@ export class SolarWorld {
     this.trail.geometry.setFromPoints(pts); this.trail.computeLineDistances();
     const a = ang(Math.max(t, 36));
     this.earth.position.set(Math.cos(a) * R, 0, Math.sin(a) * R);
-    this.earth.rotation.y = clock * 0.3;
+    // 刹车时代已停转：不再自转，发动机半球（东亚）始终朝向航迹后方，喷流逆着前进方向
+    const t2 = Math.max(t, 36) + 0.05, a2 = ang(t2), R2 = artR(this.earthAU(t2));
+    const back = this.earth.position.clone().sub(V(Math.cos(a2) * R2, 0, Math.sin(a2) * R2));
+    if (back.lengthSq() < 1e-10) back.set(-Math.sin(a), 0, Math.cos(a)); // 出发前：沿切向反方向
+    back.normalize();
+    this.earth.rotation.y = Math.atan2(-back.z, back.x) - ENGINE_LON;
     this.earth.material.uniforms.uSun.value.copy(this.earth.position.clone().negate().normalize());
+    // 冰封随距离：1 AU 无冰，约 2 AU 开始变白，到木星轨道（约 5 AU）全白
+    this.earth.material.uniforms.uFreeze.value = 0.001 + sstep(1.8, 5, au) * 0.95;
+    this.engineMat.uniforms.uTime.value = clock;
     this.earthGlow.position.copy(this.earth.position);
-    this.plume.position.copy(this.earth.position.clone().multiplyScalar(1 - 0.6 / R));
+    // 拉近时收起远景光晕，避免像旁边多了个光源
+    const camD = this.camera.position.distanceTo(this.earth.position);
+    this.earthGlow.material.uniforms.uOp.value = 0.8 * sstep(4, 14, camD);
     this.helio.material.uniforms.uTime.value = clock;
     this.stars.material.uniforms.uTime.value = clock;
     this.corona.scale.setScalar(9 * age);

@@ -222,4 +222,5 @@ async function boot() {
 }
 boot();
 window.__seek = (t) => { filmT = t; clock = t; frame(performance.now()); };
+window.__dbg = { get world() { return activeWorld; }, get controls() { return controls; } };
 window.__state = () => ({ t: filmT, playing, mode });
