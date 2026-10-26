@@ -439,9 +439,9 @@ export class EarthWorld {
   // 相机位置拆成「方向 + 对数半径」做 Catmull-Rom 插值——穿越尺度时贴着球面绕行，不会穿进地球；
   // 视线方向与上方向同样插值后归一化。
   climbH(t) {   // 攀爬舱高度（距地表，地球半径），与镜头无关的固定日程
-    if (t < 15.2) return 0.02;
-    if (t < 24.5) return 0.02 + Math.pow((t - 15.2) / 9.3, 1.7) * 5.3;
-    return Math.min(5.62, 5.32 + (t - 24.5) * 0.12);
+    if (t < 18.0) return 0.02;
+    if (t < 25.4) return 0.02 + Math.pow((t - 18.0) / 7.4, 1.7) * 5.3;
+    return Math.min(5.62, 5.32 + (t - 25.4) * 0.12);
   }
 
   _oneTake(t, hero, anchor, side) {
@@ -460,6 +460,7 @@ export class EarthWorld {
     const T = side(hero), B = hero.clone().cross(T);
     const Ta = side(anchor), Ba = anchor.clone().cross(Ta);
     const mid = hero.clone().add(anchor).normalize();
+    const ang = hero.angleTo(anchor), sl = (f) => hero.clone().multiplyScalar(Math.sin((1 - f) * ang)).addScaledVector(anchor, Math.sin(f * ang)).divideScalar(Math.sin(ang));   // 阵列→锚点的大圆
     const Y = V(0, 1, 0);
     const climber = (h) => anchor.clone().multiplyScalar(1 + h);
     const Fl = this.fleet; Fl.updateMatrixWorld();
@@ -467,21 +468,26 @@ export class EarthWorld {
       // 高轨：整个背阳半球被点火前沿逐渐点亮
       [0.0, () => ({ pos: hero.clone().multiplyScalar(1.2).addScaledVector(T, -2.9).addScaledVector(Y, 0.9), look: hero.clone().multiplyScalar(0.55).addScaledVector(T, -0.5).addScaledVector(Y, 0.1), up: Y, fov: 40 })],
       [5.0, () => ({ pos: hero.clone().multiplyScalar(1.6).addScaledVector(T, -1.9).addScaledVector(Y, 0.55), look: hero.clone().multiplyScalar(0.8).addScaledVector(T, -0.2), up: Y, fov: 42 })],
-      // 俯冲到重型阵列旁：低角度仰拍，喷流冲天
-      [9.6, () => ({ pos: hero.clone().multiplyScalar(1.42).addScaledVector(T, -0.75).addScaledVector(B, -0.2), look: hero.clone().multiplyScalar(1.02).addScaledVector(T, 0.3), up: hero, fov: 46 })],
-      [12.2, () => ({ pos: hero.clone().multiplyScalar(1.3).addScaledVector(T, -0.55).addScaledVector(B, 0.25), look: hero.clone().multiplyScalar(1.0).addScaledVector(T, 0.45).addScaledVector(B, -0.05), up: hero, fov: 48 })],
-      // 拉起，沿弧线飞向赤道上的电梯
-      [14.2, () => ({ pos: mid.clone().multiplyScalar(1.55), look: anchor.clone().multiplyScalar(1.25), up: mid, fov: 48 })],
-      // 电梯基座：仰望缆索
-      [16.2, () => ({ pos: anchor.clone().multiplyScalar(1.05).addScaledVector(Ta, 0.16).addScaledVector(Ba, 0.05), look: anchor.clone().multiplyScalar(1.5), up: anchor, fov: 52 })],
+      // 推进到重型阵列近景（同探索模式的「重型发动机阵列」视角）
+      [8.2, () => ({ pos: hero.clone().multiplyScalar(1.3).addScaledVector(T, -0.22).addScaledVector(B, 0.1), look: hero.clone().multiplyScalar(1.0).addScaledVector(T, 0.06), up: hero, fov: 46 })],
+      [10.6, () => ({ pos: hero.clone().multiplyScalar(1.26).addScaledVector(T, -0.06).addScaledVector(B, 0.26), look: hero.clone().multiplyScalar(1.0).addScaledVector(B, 0.04), up: hero, fov: 46 })],
+      // 转向电梯方向，贴地向西飞越亚洲、阿拉伯半岛、非洲
+      [12.2, () => ({ pos: sl(0.16).multiplyScalar(1.15), look: sl(0.42), up: sl(0.16), fov: 52 })],
+      [13.8, () => ({ pos: sl(0.42).multiplyScalar(1.09), look: sl(0.62), up: sl(0.42), fov: 54 })],
+      [15.3, () => ({ pos: sl(0.84).multiplyScalar(1.075), look: anchor.clone().multiplyScalar(1.03), up: sl(0.84), fov: 52 })],
+      // 电梯锚点近景（同探索模式「太空电梯锚点」）：平台、缆索根部与待发的攀爬舱
+      [16.4, () => ({ pos: anchor.clone().multiplyScalar(1.1).addScaledVector(Ta, 0.24).addScaledVector(Ba, 0.06), look: anchor.clone().multiplyScalar(0.99), up: anchor, fov: 48 })],
+      [17.6, () => ({ pos: anchor.clone().multiplyScalar(1.08).addScaledVector(Ta, 0.19).addScaledVector(Ba, 0.1), look: anchor.clone().multiplyScalar(1.0), up: anchor, fov: 48 })],
+      // 仰望缆索
+      [18.8, () => ({ pos: anchor.clone().multiplyScalar(1.05).addScaledVector(Ta, 0.16).addScaledVector(Ba, 0.05), look: anchor.clone().multiplyScalar(1.5), up: anchor, fov: 52 })],
       // 跟随攀爬舱上行：先在侧面看它驶过，再回望缆索汇向地球，最后转头仰望方舟号（每次转向不超过约 90°）
-      [18.0, () => { const c = climber(this.climbH(18.0)); return { pos: c.clone().addScaledVector(anchor, -0.04).addScaledVector(Ta, 0.18).addScaledVector(Ba, 0.05), look: c.clone().addScaledVector(anchor, 0.12), up: anchor, fov: 50 }; }],
-      [20.2, () => { const c = climber(this.climbH(20.2)); return { pos: c.clone().addScaledVector(anchor, 0.14).addScaledVector(Ta, 0.15).addScaledVector(Ba, 0.06), look: c.clone().addScaledVector(anchor, -1.1).addScaledVector(Ta, -0.15), up: Ta, fov: 50 }; }],
-      [22.4, () => { const c = climber(this.climbH(22.4)); return { pos: c.clone().addScaledVector(Ta, 0.24).addScaledVector(Ba, 0.08), look: c.clone().addScaledVector(anchor, -0.05), up: anchor, fov: 48 }; }],
-      [24.0, () => { const c = climber(this.climbH(24.0)); return { pos: c.clone().addScaledVector(anchor, -0.2).addScaledVector(Ta, 0.28).addScaledVector(Ba, 0.1), look: anchor.clone().multiplyScalar(GEO), up: anchor, fov: 48 }; }],
-      [25.2, () => { const top = anchor.clone().multiplyScalar(GEO); return { pos: top.clone().addScaledVector(anchor, -0.55).addScaledVector(Ta, 0.4).addScaledVector(Ba, 0.1), look: top.clone().addScaledVector(anchor, 0.1), up: anchor, fov: 48 }; }],
+      [20.2, () => { const c = climber(this.climbH(20.2)); return { pos: c.clone().addScaledVector(anchor, -0.04).addScaledVector(Ta, 0.18).addScaledVector(Ba, 0.05), look: c.clone().addScaledVector(anchor, 0.12), up: anchor, fov: 50 }; }],
+      [21.4, () => { const c = climber(this.climbH(21.4)); return { pos: c.clone().addScaledVector(anchor, 0.14).addScaledVector(Ta, 0.15).addScaledVector(Ba, 0.06), look: c.clone().addScaledVector(anchor, -1.1).addScaledVector(Ta, -0.15), up: Ta, fov: 50 }; }],
+      [23.2, () => { const c = climber(this.climbH(23.2)); return { pos: c.clone().addScaledVector(Ta, 0.24).addScaledVector(Ba, 0.08), look: c.clone().addScaledVector(anchor, -0.05), up: anchor, fov: 48 }; }],
+      [24.7, () => { const c = climber(this.climbH(24.7)); return { pos: c.clone().addScaledVector(anchor, -0.2).addScaledVector(Ta, 0.28).addScaledVector(Ba, 0.1), look: anchor.clone().multiplyScalar(GEO), up: anchor, fov: 48 }; }],
+      [25.9, () => { const top = anchor.clone().multiplyScalar(GEO); return { pos: top.clone().addScaledVector(anchor, -0.55).addScaledVector(Ta, 0.4).addScaledVector(Ba, 0.1), look: top.clone().addScaledVector(anchor, 0.1), up: anchor, fov: 48 }; }],
       // 方舟号压在前景，整颗地球在后
-      [27.2, () => { const top = anchor.clone().multiplyScalar(GEO); const pos = top.clone().addScaledVector(anchor, 0.95).addScaledVector(Ta, 0.5).addScaledVector(Y, 0.18); const toArk = top.clone().sub(pos).normalize(), toE = pos.clone().negate().normalize(); return { pos, look: pos.clone().add(toArk.multiplyScalar(0.45).add(toE.multiplyScalar(0.55))), up: Y, fov: 46 }; }],
+      [27.9, () => { const top = anchor.clone().multiplyScalar(GEO); const pos = top.clone().addScaledVector(anchor, 0.95).addScaledVector(Ta, 0.5).addScaledVector(Y, 0.18); const toArk = top.clone().sub(pos).normalize(), toE = pos.clone().negate().normalize(); return { pos, look: pos.clone().add(toArk.multiplyScalar(0.45).add(toE.multiplyScalar(0.55))), up: Y, fov: 46 }; }],
       // 滑向前方的领航员国际空间站
       [31.0, () => ({ pos: Fl.localToWorld(V(1.05, 0.34, 1.2)), look: Fl.localToWorld(V(0.12, -0.04, -0.05)), up: UPF, fov: 44 })],
       [36.4, () => ({ pos: Fl.localToWorld(V(0.7, 0.26, 1.25)), look: Fl.localToWorld(V(0.12, -0.04, -0.05)), up: UPF, fov: 44 })],
