@@ -375,19 +375,11 @@ export class EarthWorld {
         const c = hero.clone().multiplyScalar(lerp(1.2, 1.0, u)).add(side(hero).multiplyScalar(lerp(-2.9, -2.5, u))).add(V(0, lerp(0.9, 0.7, u), 0));
         return { pos: c, look: hero.clone().multiplyScalar(0.55).add(side(hero).multiplyScalar(-0.5)).add(V(0, 0.1, 0)), fov: 40 };
       }],
-      // 02 重型阵列近景
-      [9.2, 12.4, (u) => {
+      // 02 重型阵列近景（原 02b 电梯建造镜头已删，本镜延长到 15.2）
+      [9.2, 15.2, (u) => {
         const T = side(hero), B = hero.clone().cross(T);
         const c = hero.clone().multiplyScalar(lerp(1.62, 1.5, u)).addScaledVector(T, lerp(-0.62, -0.5, u)).addScaledVector(B, lerp(-0.3, -0.2, u));
         return { pos: c, look: hero.clone().multiplyScalar(1.12).addScaledVector(T, 0.05), fov: 40, up: hero };
-      }],
-      // 02b 太空电梯全线贯通：赤道海上平台，缆索由下向上亮起，顶端方舟号组装
-      [12.4, 15.2, (u) => {
-        const T = side(anchor), B = anchor.clone().cross(T);
-        // 侧面宽景：地球边缘在画面下方，缆索从赤道平台向同步轨道生长
-        const k = sstep(0.15, 0.95, u);   // 机位随缆索生长上摇
-        const c = anchor.clone().multiplyScalar(lerp(1.5, 3.4, k)).addScaledVector(T, lerp(3.6, 4.6, k)).addScaledVector(B, 0.6);
-        return { pos: c, look: anchor.clone().multiplyScalar(lerp(1.9, 4.4, k)), fov: 55, up: anchor, climb: 0 };
       }],
       // 03 太空电梯攀升
       [15.2, 24.0, (u) => {
@@ -500,28 +492,26 @@ export class EarthWorld {
     this.plumeLight.position.copy(heroW.clone().multiplyScalar(1.2));
     this.plumeLight.intensity = (ch === 1 ? 2.5 * sstep(1, 6, t) : 0.6) * on;
 
-    // 电梯：12.4 秒前不存在；12.4–15.2 秒建造（缆索由下向上生长，顶端方舟号组装）；之后全程保留，深空段结霜变暗
+    // 电梯：片头即已建成（电影里出发前几十年就建好了），全程保留，深空段结霜变暗
     const L = this.elevL;
-    const build = sstep(12.6, 14.6, t);
-    this.elev.visible = t >= 12.4;
-    this.cable.scale.y = Math.max(build, 0.001);
-    this.relays.forEach((w) => { w.visible = build * L >= w.position.y; });
-    const st = sstep(14.0, 15.0, t);
-    this.station.visible = st > 0.001; this.station.scale.setScalar(0.32 * (0.6 + 0.4 * st));
+    // 镜头05（30–36.4 秒）领航员特写里，几万公里外的方舟号和缆索只剩几个像素，透视又压在主脊上像站上部件，这一镜隐去
+    this.elev.visible = !(t >= 30 && t < 36.4);
+    this.cable.scale.y = 1;
+    this.relays.forEach((w) => { w.visible = true; });
+    this.station.visible = true; this.station.scale.setScalar(0.32);
     const sh = this.shot(t);
     const deep = ch >= 3 && ch <= 5;
-    const building = t < 15.2;
-    const climb = building ? build * L : sh && sh.climb !== undefined ? sh.climb : deep ? 2.2 : 2.2 + Math.sin(clock * 0.05) * 1.5;
-    this.climber.visible = !building;
+    const climb = sh && sh.climb !== undefined ? sh.climb : deep ? 2.2 : 2.2 + Math.sin(clock * 0.05) * 1.5;
+    this.climber.visible = true;
     this.climber.position.y = climb; this.climberLight.position.y = climb + 0.02;
-    const fs = building ? lerp(0.32, 0.05, st) : 0.05; this.climberLight.scale.set(fs, fs, 1);
-    const lw = building ? 5 : 1; this.cableLine.scale.set(lw, 1, lw);
-    this.climberLight.material.uniforms.uOp.value = building ? (build > 0.001 ? 1 - st * 0.6 : 0) : deep ? 0.15 : 1;
+    const fs = 0.05; this.climberLight.scale.set(fs, fs, 1);
+    const lw = 1; this.cableLine.scale.set(lw, 1, lw);
+    this.climberLight.material.uniforms.uOp.value = deep ? 0.15 : 1;
     this.cableGlow.opacity = 0.55 * (1 - 0.7 * Math.max(0, freeze - 0.5) * 2);
     if (!deep) this.station.userData.rings.forEach((r, i) => { r.rotation.y = (i % 2 ? -1 : 1) * clock * 0.25; });
 
     // 舰队：在地球前进方向上开路，船头朝前；编队向后拉开约 4 个地球半径，所以整体偏到一侧，不压在地球上
-    const fleetOn = (t >= 28 && t < 37) || (t >= 96 && t < 126);
+    const fleetOn = (t >= 30 && t < 37) || (t >= 96 && t < 126);
     this.fleet.visible = fleetOn;
     if (t < 96) this.fleet.position.copy(FWD).multiplyScalar(4.6 + (t % 40) * 0.01).addScaledVector(SIDE, 1.7).addScaledVector(UPF, 0.4);
     else this.fleet.position.copy(FWD).multiplyScalar(4.8).addScaledVector(SIDE, -0.9).addScaledVector(UPF, 1.0);

@@ -18,8 +18,7 @@ export function chapterAt(t) {
 // 字幕：[开始, 结束, 中文, English]
 export const SUBS = [
   [1.0, 8.6,  '太阳正在死去。一万两千台聚变发动机，把它的光变成我们离开的路。', 'The Sun is dying. Twelve thousand fusion engines turn its light into our way out.'],
-  [9.2, 12.2, '点火从背阳的半球开始，一台接一台，向整颗星球蔓延。', 'Ignition starts on the night side and spreads, engine by engine, across the world.'],
-  [12.6, 15.0,'联合政府公告：太空电梯全线贯通。', 'UEG Bulletin: the Space Elevator is fully operational.'],
+  [9.2, 14.8, '点火从背阳的半球开始，一台接一台，向整颗星球蔓延。', 'Ignition starts on the night side and spreads, engine by engine, across the world.'],
   [15.4, 23.6,'太空电梯：从赤道到地球同步轨道，三万六千公里。', 'The space elevator: 36,000 km from the equator to geostationary orbit.'],
   [24.2, 29.6,'方舟号国际空间站：同步轨道上的港口，地球的出口。', 'The Ark International Space Station: a harbour in geostationary orbit, Earth\u2019s way out.'],
   [30.2, 35.6,'领航员国际空间站在前方领航。我们带着整个世界出发。', 'The Navigator ISS leads the way. We leave with the whole world on board.'],
@@ -46,7 +45,6 @@ export const EVENTS = [
   [2.5,  'T+0:02', '点火 · 重型阵列 25 / 25 台点亮'],
   [6.0,  'T+0:06', '点火前沿推进 · 背阳半球'],
   [11.0, 'T+0:11', '赤道转向阵列 · 推力同步'],
-  [12.8, 'T+0:12', '联合政府公告 · 太空电梯全线贯通'],
   [16.0, 'T+0:16', '电梯攀爬舱 07 · 离开锚点'],
   [25.0, 'T+0:25', '方舟号 · 同步轨道船坞 · 在建'],
   [31.0, 'T+0:31', '领航员国际空间站 · 伴航就位'],
