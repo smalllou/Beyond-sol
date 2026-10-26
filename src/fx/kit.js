@@ -200,15 +200,15 @@ export function buildEscort(mats, seed = 1) {
   return k.build(mats);
 }
 
-// 方舟号国际空间站（《流浪地球2》同步轨道站）：轴向中枢 + 太阳翼 + 散热板 + 两个反向旋转的重力环。
-// 造型参考 oxomkbk/earth-migration 的 buildApexStation / makeGravityRing（MIT）；以“站体单位”建模（大环半径 12.5），
-// 外层再整体缩放到原天枢站的尺寸（大环半径 0.42），三向投影贴图按站体单位取样，不会被拉伸。
-// M：{ hull, dark, white, gold, panel, warm, lamp, red }，hull/dark/white 已套 PBR 三向投影
+// 方舟号国际空间站（《流浪地球2》）：在太空电梯同步轨道船坞里建造的巨型圆盘。
+// 按片中“方舟国际空间站[在建]”镜头还原：电梯缆索从圆心穿过；同心圆环桁架一层层向外抬高成浅碗（梯田状）；
+// 环间铺铜褐色舱壁板（在建，留有缺口露出桁架）；最外圈白色厚环挂满舱段模块与太阳翼；一段弧形运输轨道架在外缘上方。
+// 以“站体单位”建模（外环半径 12.5），外层整体缩放到原站尺寸（0.42）。三向投影贴图按站体单位取样。
+// M：{ hull, dark, white, gold, copper, panel, warm, lamp, red }
 export function buildArk(M) {
   const add = (parent, geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => {
     const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); parent.add(m); return m;
   };
-  // 同材质合并成一个 draw call
   const bake = (grp) => {
     grp.updateMatrixWorld(true);
     const by = new Map();
@@ -218,73 +218,90 @@ export function buildArk(M) {
     return out;
   };
   let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const lathe = (pts, seg) => new THREE.LatheGeometry(pts.map(([x, y]) => new THREE.Vector2(x, y)), seg);
+  // 两点之间的细杆（桁架弦杆/斜撑）
+  const Y = new THREE.Vector3(0, 1, 0);
+  const strut = (parent, p0, p1, r, mat) => {
+    const d = new THREE.Vector3().subVectors(p1, p0), len = d.length();
+    const g = new THREE.CylinderGeometry(r, r, len, 5);
+    g.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, d.normalize()));
+    g.translate((p0.x + p1.x) / 2, (p0.y + p1.y) / 2, (p0.z + p1.z) / 2);
+    parent.add(new THREE.Mesh(g, mat));
+  };
+  const P = (r, a, y) => new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
+  const st = new THREE.Group();
+  // 梯田：半径越大越高（浅碗口朝上，缆索从下方进入圆心）
+  const RINGS = [2.2, 3.8, 5.4, 7.0, 8.6, 10.2, 11.6, 12.5];
+  const hY = (r) => 0.09 * r * r / 12.5 * 4.0 - 0.6;
+  const NS = 48;                                   // 径向分格数
+  RINGS.forEach((r, i) => {
+    const y = hY(r), outer = i === RINGS.length - 1, tube = outer ? 0.42 : 0.12 + i * 0.015;
+    // 每圈双层弦杆（上下两道环），中间竖撑+斜撑形成环形桁架
+    add(st, new THREE.TorusGeometry(r, tube, outer ? 14 : 6, 200), outer ? M.white : M.hull, 0, y, 0, Math.PI / 2);
+    if (!outer) add(st, new THREE.TorusGeometry(r, tube * 0.7, 5, 200), M.dark, 0, y - 0.55, 0, Math.PI / 2);
+    if (!outer) for (let k = 0; k < NS; k++) {
+      const a0 = k / NS * Math.PI * 2, a1 = (k + 1) / NS * Math.PI * 2;
+      strut(st, P(r, a0, y), P(r, a0, y - 0.55), 0.035, M.dark);
+      strut(st, P(r, a0, y), P(r, a1, y - 0.55), 0.025, M.dark);
+    }
+    // 台阶面：环与内一圈之间的铜褐色舱壁（在建，部分扇区空着）
+    if (i > 0) {
+      const r0 = RINGS[i - 1], y0 = hY(r0);
+      for (let k = 0; k < NS; k++) {
+        const a0 = k / NS * Math.PI * 2, a1 = (k + 1) / NS * Math.PI * 2;
+        // 径向桁梁
+        if (k % 2 === 0) { strut(st, P(r0, a0, y0), P(r, a0, y), 0.05, M.hull); strut(st, P(r0, a0, y0 - 0.5), P(r, a0, y - 0.5), 0.03, M.dark); }
+        if (rnd() < 0.3 + i * 0.04) continue;          // 未完工的缺口
+        const g = new THREE.BufferGeometry();
+        const q = [P(r0 + 0.12, a0 + 0.004, y0 - 0.08), P(r - 0.12, a0 + 0.004, y - 0.08), P(r - 0.12, a1 - 0.004, y - 0.08), P(r0 + 0.12, a1 - 0.004, y0 - 0.08)];
+        const v = []; for (const t of [0, 1, 2, 0, 2, 3]) v.push(q[t].x, q[t].y, q[t].z);
+        for (const t of [0, 2, 1, 0, 3, 2]) v.push(q[t].x, q[t].y - 0.06, q[t].z);    // 背面
+        g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3)); g.computeVertexNormals();
+        g.setAttribute('uv', new THREE.Float32BufferAttribute(new Array(v.length / 3 * 2).fill(0), 2));
+        st.add(new THREE.Mesh(g, rnd() < 0.18 ? M.white : M.copper));
+      }
+    }
+  });
+  // 外环：舱段模块、径向太阳翼、对接臂
+  const R = 12.5, yR = hY(R);
+  for (let k = 0; k < 64; k++) {
+    const a = k / 64 * Math.PI * 2;
+    const h = 0.5 + rnd() * 0.7;
+    add(st, new THREE.BoxGeometry(0.9 + rnd() * 0.6, h, 1.1), k % 5 ? M.white : M.hull, Math.cos(a) * R, yR + 0.35 + h / 2, Math.sin(a) * R, 0, -a, 0);
+    if (k % 3 === 0) add(st, new THREE.BoxGeometry(0.6, 0.5, 0.8), M.dark, Math.cos(a) * (R + 0.6), yR - 0.2, Math.sin(a) * (R + 0.6), 0, -a, 0);
+  }
+  for (let k = 0; k < 10; k++) {
+    const a = (k + 0.5) / 10 * Math.PI * 2;
+    const w = new THREE.Group(); w.position.set(Math.cos(a) * (R + 0.5), yR, Math.sin(a) * (R + 0.5)); w.rotation.y = -a; st.add(w);
+    add(w, new THREE.BoxGeometry(4.5, 0.1, 0.1), M.dark, 2.25, 0, 0);
+    for (let j = 0; j < 2; j++) add(w, new THREE.BoxGeometry(1.9, 0.04, 1.3), M.gold, 1.2 + j * 2.1, 0, 0);   // 片中太阳翼是金棕色
+  }
+  // 弧形运输轨道：架在外缘上方约 140°，带支架与车厢
+  const arc = Math.PI * 0.8, a0 = Math.PI * 0.15, rT = 13.6, yT = yR + 2.2;
+  add(st, new THREE.TorusGeometry(rT, 0.38, 10, 120, arc), M.white, 0, yT, 0, Math.PI / 2, 0, a0);
+  add(st, new THREE.TorusGeometry(rT, 0.16, 6, 120, arc), M.dark, 0, yT + 0.45, 0, Math.PI / 2, 0, a0);
+  for (let k = 0; k <= 10; k++) { const a = -(a0 + arc * k / 10); strut(st, P(rT, a, yT), P(R, a, yR + 0.3), 0.12, M.hull); }
+  for (let k = 0; k < 3; k++) { const a = -(a0 + arc * (0.2 + k * 0.3)); add(st, new THREE.BoxGeometry(1.0, 0.8, 2.2), M.white, Math.cos(a) * rT, yT + 0.7, Math.sin(a) * rT, 0, -a, 0); }
+  // 中心枢纽：缆索穿过的锚定井，上下夹持环
+  add(st, new THREE.CylinderGeometry(1.1, 1.4, 3.2, 24, 1, true), M.hull, 0, -1.2, 0);
+  for (const y of [-2.6, -1.2, 0.2]) add(st, new THREE.TorusGeometry(1.35, 0.14, 8, 40), M.dark, 0, y, 0, Math.PI / 2);
+  for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; strut(st, P(1.3, a, -2.6), P(RINGS[0], a, hY(RINGS[0])), 0.09, M.hull); }
+  const inner = new THREE.Group();
+  inner.add(bake(st));
+  // 窗光：沿外环与台阶内壁的暖色点，在建区稀疏
+  const win = [];
+  for (let i = 0; i < 260; i++) { const ri = 1 + (rnd() * (RINGS.length - 1) | 0), r = RINGS[ri], a = rnd() * Math.PI * 2; win.push(P(r + (ri === RINGS.length - 1 ? 0.45 : 0.05), a, hY(r) + (ri === RINGS.length - 1 ? 0.2 : -0.2))); }
   const dots = (list, mat, size) => {
     const im = new THREE.InstancedMesh(new THREE.BoxGeometry(size, size, size), mat, list.length), m4 = new THREE.Matrix4();
     list.forEach((p, i) => { m4.makeTranslation(p.x, p.y, p.z); im.setMatrixAt(i, m4); });
     return im;
   };
-  const gravityRing = (r, tube, spokes, windows) => {
-    const ring = new THREE.Group(), s = new THREE.Group();
-    add(s, new THREE.TorusGeometry(r, tube, 18, 160), M.hull, 0, 0, 0, Math.PI / 2);
-    add(s, new THREE.TorusGeometry(r, tube * 0.28, 8, 160), M.dark, 0, tube * 0.85, 0, Math.PI / 2);
-    add(s, new THREE.TorusGeometry(r, tube * 0.28, 8, 160), M.dark, 0, -tube * 0.85, 0, Math.PI / 2);
-    add(s, new THREE.TorusGeometry(r + tube * 0.95, tube * 0.12, 6, 160), M.gold, 0, 0, 0, Math.PI / 2);
-    for (let i = 0; i < spokes; i++) {
-      const a = i / spokes * Math.PI * 2;
-      add(s, new THREE.CylinderGeometry(tube * 0.22, tube * 0.22, r, 10), i % 2 ? M.hull : M.dark, Math.cos(a) * r / 2, 0, Math.sin(a) * r / 2, 0, -a, Math.PI / 2);
-      add(s, new THREE.BoxGeometry(tube * 1.6, tube * 1.4, tube * 2.4), M.dark, Math.cos(a) * r, 0, Math.sin(a) * r, 0, -a, 0);
-    }
-    ring.add(bake(s));
-    // 舷窗：沿外缘两排，暖色为主
-    const win = new THREE.InstancedMesh(new THREE.BoxGeometry(0.06, tube * 0.32, tube * 0.42), M.warm, windows);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
-    for (let i = 0; i < windows; i++) {
-      const a = i / windows * Math.PI * 2, y = (i % 2 ? 0.28 : -0.28) * tube;
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), -a);
-      m4.compose(new THREE.Vector3(Math.cos(a) * (r + tube * 0.98), y, Math.sin(a) * (r + tube * 0.98)), q, one);
-      win.setMatrixAt(i, m4);
-    }
-    ring.add(win);
-    return ring;
-  };
-  const solarWing = (len, width, parent, x, y, z, ry) => {
-    const w = new THREE.Group(); w.position.set(x, y, z); w.rotation.y = ry; parent.add(w);
-    add(w, new THREE.BoxGeometry(len, 0.12, 0.12), M.dark, len / 2, 0, 0);
-    for (let i = 0; i < 4; i++) for (const sd of [1, -1]) add(w, new THREE.BoxGeometry(len / 4 - 0.15, 0.04, width), M.panel, len / 8 + i * len / 4, 0, sd * (width / 2 + 0.15));
-  };
-  const st = new THREE.Group();
-  // 中枢舱：上半球白色、下半球深色（缆索从下方接入）
-  add(st, new THREE.CylinderGeometry(1.7, 1.7, 9, 28), M.hull);
-  add(st, new THREE.SphereGeometry(1.7, 28, 14, 0, Math.PI * 2, 0, Math.PI / 2), M.hull, 0, 4.5, 0);
-  add(st, new THREE.SphereGeometry(1.7, 28, 14, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), M.dark, 0, -4.5, 0);
-  for (const y of [-3.6, -0.2, 3.2]) add(st, new THREE.CylinderGeometry(2.35, 2.35, 0.55, 28), M.dark, 0, y, 0);
-  add(st, new THREE.CylinderGeometry(0.35, 0.35, 6, 10), M.dark, 0, 7.5, 0);
-  add(st, lathe([[0.05, 0], [1.2, 0.35], [2.2, 0.95], [2.4, 1.05]], 36), M.hull, 0, 10.2, 0, Math.PI);   // 顶部通信天线碟
-  for (let i = 0; i < 4; i++) {
-    const a = i / 4 * Math.PI * 2 + Math.PI / 4;
-    add(st, new THREE.BoxGeometry(5.5, 0.55, 0.55), M.hull, Math.cos(a) * 4.4, -5.2, Math.sin(a) * 4.4, 0, -a, 0);        // 对接臂
-    add(st, new THREE.CylinderGeometry(0.75, 0.75, 1.4, 16), M.dark, Math.cos(a) * 7.2, -5.2, Math.sin(a) * 7.2, 0, -a, Math.PI / 2);   // 对接口
-    add(st, new THREE.BoxGeometry(1.4, 0.9, 3.2), M.gold, Math.cos(a) * 2.6, 1.6, Math.sin(a) * 2.6, 0, -a, 0);           // 隔热包覆设备舱
-  }
-  solarWing(16, 2.6, st, 2.0, 5.6, 0, 0);
-  solarWing(16, 2.6, st, -2.0, 5.6, 0, Math.PI);
-  solarWing(12, 2.2, st, 0, 5.0, 2.0, -Math.PI / 2);
-  solarWing(12, 2.2, st, 0, 5.0, -2.0, Math.PI / 2);
-  for (let i = 0; i < 3; i++) add(st, new THREE.BoxGeometry(0.08, 6, 2.2), M.white, 0, -9.5 + i * 0.2, 0, 0, i * Math.PI / 3, 0);   // 散热板
-  const inner = new THREE.Group();
-  inner.add(bake(st));
-  const ringA = gravityRing(8.5, 0.62, 6, 80); ringA.position.y = -1.6;
-  const ringB = gravityRing(12.5, 0.72, 8, 120); ringB.position.y = 1.8;
-  inner.add(ringA, ringB);
-  // 外部照明与航行灯
-  const pts = [];
-  for (let i = 0; i < 48; i++) { const a = rnd() * Math.PI * 2, rad = [1.8, 2.4, 8.6, 12.6][i % 4]; pts.push(new THREE.Vector3(Math.cos(a) * rad, -5 + rnd() * 10, Math.sin(a) * rad)); }
-  inner.add(dots(pts, M.lamp, 0.07));
-  inner.add(dots([new THREE.Vector3(18, 5.6, 0), new THREE.Vector3(-18, 5.6, 0), new THREE.Vector3(0, 5, 14), new THREE.Vector3(0, 5, -14), new THREE.Vector3(0, 11.6, 0)], M.red, 0.14));
+  inner.add(dots(win, M.warm, 0.09));
+  const lamps = []; for (let i = 0; i < 40; i++) { const a = rnd() * Math.PI * 2; lamps.push(P(R + 0.2, a, yR + 1.2)); }
+  inner.add(dots(lamps, M.lamp, 0.07));
+  inner.add(dots([0, 1, 2, 3, 4, 5].map(k => P(R + 5, (k + 0.5) / 6 * Math.PI * 2, yR)), M.red, 0.16));
   inner.scale.setScalar(0.42 / 12.5);
   const g = new THREE.Group(); g.add(inner);
-  g.userData.rings = [ringA, ringB];
+  g.userData.rings = [];                // 片中方舟号是不旋转的船坞结构
   return g;
 }
 

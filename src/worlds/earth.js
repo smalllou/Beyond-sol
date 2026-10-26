@@ -195,6 +195,7 @@ export class EarthWorld {
       hull: applyTriplanar(std({ color: 0xa4abb4, metalness: 0.15, roughness: 0.5, emissive: 0x3a4048 }), plate, { scale: 0.32, roughMul: 0.9, metalMul: 0.9, panels: 1.2 }),
       dark: applyTriplanar(std({ color: 0x4e5560, metalness: 0.35, roughness: 0.55, emissive: 0x1c2026 }), shutter, { scale: 0.45 }),
       white: applyTriplanar(std({ color: 0xd9dee4, metalness: 0.05, roughness: 0.42, emissive: 0x30343a }), blue, { scale: 0.8, metalMul: 0.5, blend: 0.5 }),
+      copper: applyTriplanar(std({ color: 0x7a5236, metalness: 0.55, roughness: 0.5, emissive: 0x24160c, side: THREE.DoubleSide }), plate, { scale: 0.5, blend: 0.7, panels: 1.6 }),
       gold: std({ color: 0xd9a84e, metalness: 0.8, roughness: 0.35, emissive: 0x3a2a10 }),   // 背光一侧也留一点自发光，模拟地球反照
       panel: this.mats.panel,
       warm: new THREE.MeshBasicMaterial({ color: new THREE.Color(1.9, 1.3, 0.7) }),
@@ -517,7 +518,7 @@ export class EarthWorld {
     const lw = building ? 5 : 1; this.cableLine.scale.set(lw, 1, lw);
     this.climberLight.material.uniforms.uOp.value = building ? (build > 0.001 ? 1 - st * 0.6 : 0) : deep ? 0.15 : 1;
     this.cableGlow.opacity = 0.55 * (1 - 0.7 * Math.max(0, freeze - 0.5) * 2);
-    if (!deep) { this.station.userData.rings[0].rotation.y = clock * 0.25; this.station.userData.rings[1].rotation.y = -clock * 0.25; }
+    if (!deep) this.station.userData.rings.forEach((r, i) => { r.rotation.y = (i % 2 ? -1 : 1) * clock * 0.25; });
 
     // 舰队：在地球前进方向上开路，船头朝前；编队向后拉开约 4 个地球半径，所以整体偏到一侧，不压在地球上
     const fleetOn = (t >= 28 && t < 37) || (t >= 96 && t < 126);
