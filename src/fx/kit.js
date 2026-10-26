@@ -93,111 +93,94 @@ export class Kit {
 
 // —— 具体资产 ——
 
-// 领航员号旗舰：长脊、环形居住段、推进段（细节：装甲分段与板缝、散热片阵列、天线与对接环、舷窗与航行灯、喷口环、舰体编号）
-export function buildFlagship(mats) {
-  const k = new Kit();
-  const L = 1.0;
-  k.cyl('hull', 0.035, 0.035, L, [0, 0, 0], [0, 0, Math.PI / 2], 16);
-  // 主舱段：交替的装甲块，块间是深色板缝和加强箍
-  for (let i = 0; i < 9; i++) {
-    const x = -0.42 + i * 0.1, h = 0.09 + (i % 3) * 0.02;
-    k.box(i % 2 ? 'hull' : 'white', [0.07, h, 0.09], [x, 0, 0]);
-    k.box('dark', [0.02, 0.13, 0.03], [x + 0.04, 0, 0]);
-    k.cyl('dark', 0.052, 0.052, 0.008, [x + 0.05, 0, 0], [0, 0, Math.PI / 2], 16);
-    // 侧面贴装的设备箱与管线
-    for (const s of [-1, 1]) {
-      k.box('dark', [0.05, 0.018, 0.012], [x, s * (h / 2 + 0.006), 0.02 * s]);
-      if (i % 3 === 1) k.cyl('hull', 0.006, 0.006, 0.09, [x, 0.03 * s, 0.05 * s], [0, 0, Math.PI / 2], 8);
+// 领航员国际空间站（《流浪地球》）：单座空间站，按片中镜头与官方 MENG 模型还原。
+// 局部 +X 为船头：前端是两道交错的巨型辐条圆环（外圈亮窗居住环 + 梯田状多层辐条圆盘），
+// 中段是一串方盒舱段组成的主脊，尾部是带放射状鳍片的推进段。总长约 1，圆环半径约 0.34。
+// M：方舟号同一套 PBR 材质 { hull, dark, white, gold, warm, lamp, red }
+export function buildNavigator(M) {
+  const g = new THREE.Group(), st = new THREE.Group();
+  const add = (parent, geo, mat, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => {
+    const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); parent.add(m); return m;
+  };
+  const Y = new THREE.Vector3(0, 1, 0);
+  const strut = (parent, p0, p1, r, mat) => {
+    const d = new THREE.Vector3().subVectors(p1, p0), len = d.length();
+    const geo = new THREE.CylinderGeometry(r, r, len, 5);
+    geo.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, d.normalize()));
+    geo.translate((p0.x + p1.x) / 2, (p0.y + p1.y) / 2, (p0.z + p1.z) / 2);
+    parent.add(new THREE.Mesh(geo, mat));
+  };
+  const bake = (grp) => {
+    grp.updateMatrixWorld(true);
+    const by = new Map();
+    grp.traverse((o) => { if (!o.isMesh) return; const q = (o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone()).applyMatrix4(o.matrixWorld); for (const k of Object.keys(q.attributes)) if (!['position', 'normal', 'uv'].includes(k)) q.deleteAttribute(k); (by.get(o.material) || by.set(o.material, []).get(o.material)).push(q); });
+    const out = new THREE.Group();
+    for (const [mat, list] of by) out.add(new THREE.Mesh(mergeGeometries(list, false), mat));
+    return out;
+  };
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const dots = (list, mat, size) => {
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(size, size, size), mat, list.length), m4 = new THREE.Matrix4();
+    list.forEach((p, i) => { m4.makeTranslation(p.x, p.y, p.z); im.setMatrixAt(i, m4); });
+    return im;
+  };
+  // —— 主脊：芯管 + 一串方盒舱段（片中像一节节集装箱）
+  add(st, new THREE.CylinderGeometry(0.012, 0.012, 0.9, 8), M.dark, -0.05, 0, 0, 0, 0, Math.PI / 2);
+  for (let i = 0; i < 7; i++) {
+    const x = -0.3 + i * 0.075, s = 0.06 + (i % 2) * 0.012;
+    add(st, new THREE.BoxGeometry(0.06, s, s), i % 3 ? M.hull : M.white, x, 0, 0, Math.PI / 4 * (i % 2), 0, 0);
+    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + Math.PI / 4; strut(st, new THREE.Vector3(x - 0.035, Math.cos(a) * s * 0.75, Math.sin(a) * s * 0.75), new THREE.Vector3(x + 0.04, Math.cos(a) * s * 0.75, Math.sin(a) * s * 0.75), 0.003, M.dark); }
+  }
+  // —— 推进段：粗筒 + 8 片放射鳍 + 喷口
+  add(st, new THREE.CylinderGeometry(0.04, 0.05, 0.14, 16), M.hull, -0.4, 0, 0, 0, 0, Math.PI / 2);
+  add(st, new THREE.CylinderGeometry(0.05, 0.03, 0.05, 16, 1, true), M.dark, -0.49, 0, 0, 0, 0, Math.PI / 2);
+  for (let k = 0; k < 8; k++) {
+    const a = k / 8 * Math.PI * 2, fin = new THREE.Group(); fin.position.set(-0.41, 0, 0); fin.rotation.x = a; st.add(fin);
+    add(fin, new THREE.BoxGeometry(0.11, 0.13, 0.006), k % 2 ? M.hull : M.white, -0.01, 0.1, 0, 0, 0, -0.35);
+  }
+  // —— 前端：梯田辐条圆盘（多层同心环，向前逐级收小）
+  const disc = new THREE.Group(); disc.position.x = 0.32;
+  const DR = [0.34, 0.27, 0.2, 0.13];
+  DR.forEach((r, i) => {
+    const x = i * 0.025;
+    add(disc, new THREE.TorusGeometry(r, 0.008 - i * 0.001, 6, 160), i ? M.hull : M.white, x, 0, 0, 0, Math.PI / 2);
+    add(disc, new THREE.TorusGeometry(r, 0.004, 4, 160), M.dark, x - 0.02, 0, 0, 0, Math.PI / 2);
+    const n = 48 - i * 8;
+    for (let k = 0; k < n; k++) {
+      const a = k / n * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
+      if (i === 0) {                                            // 外圈环形桁架的三角斜撑
+        const a1 = (k + 1) / n * Math.PI * 2;
+        strut(disc, new THREE.Vector3(x, c * r, s * r), new THREE.Vector3(x - 0.02, Math.cos(a1) * r, Math.sin(a1) * r), 0.0018, M.dark);
+      }
+      if (k % 2 === 0) {                                        // 辐条：从内一圈连到本圈
+        const r0 = DR[i + 1] ?? 0.03, x0 = (i + 1) * 0.025;
+        strut(disc, new THREE.Vector3(x0, c * r0, s * r0), new THREE.Vector3(x, c * r, s * r), 0.0016, M.hull);
+      }
     }
-    // 舷窗带（自发光细条）
-    k.box('glow', [0.05, 0.003, 0.002], [x, 0.012, 0.0461]);
-    k.box('glow', [0.05, 0.003, 0.002], [x, 0.012, -0.0461]);
-  }
-  // 脊梁两侧的纵向管束
-  for (const a of [0.8, 2.35, 3.9, 5.5]) k.cyl('dark', 0.005, 0.005, 0.9, [0, Math.sin(a) * 0.055, Math.cos(a) * 0.055], [0, 0, Math.PI / 2], 6);
-  // 舰首 + 舰桥
-  k.lathe('white', [[0, 0], [0.05, 0.02], [0.065, 0.1], [0.06, 0.16], [0.04, 0.2], [0.0, 0.22]], [0.5, 0, 0], [0, 0, -Math.PI / 2]);
-  k.box('hull', [0.08, 0.025, 0.05], [0.56, 0.055, 0]);
-  k.box('glow', [0.06, 0.004, 0.052], [0.57, 0.062, 0]);
-  // 舰首对接环与天线阵
-  k.torus('gold', 0.03, 0.006, [0.725, 0, 0], [0, Math.PI / 2, 0], 24);
-  k.cyl('dark', 0.002, 0.002, 0.16, [0.6, 0.12, 0], [0, 0, 0], 6);
-  k.cyl('dark', 0.0015, 0.0015, 0.1, [0.52, 0.1, 0.03], [0.3, 0, 0], 6);
-  k.lathe('white', [[0, 0], [0.035, 0.012], [0.04, 0.016], [0.0, 0.018]], [0.4, 0.075, 0], [0, 0, 0], 20);   // 抛物面天线
-  // 环形居住段：轮辐 + 环外舷窗 + 环上等距的居住舱
-  k.torus('hull', 0.2, 0.018, [0.12, 0, 0], [0, Math.PI / 2, 0], 80);
-  k.torus('glow', 0.2, 0.0035, [0.12 + 0.017, 0, 0], [0, Math.PI / 2, 0], 80);
-  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; k.box('dark', [0.012, 0.012, 0.2], [0.12, Math.sin(a) * 0.1, Math.cos(a) * 0.1], [a, 0, 0]); }
-  for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * Math.PI * 2; k.box(i % 2 ? 'white' : 'hull', [0.05, 0.03, 0.04], [0.12, Math.sin(a) * 0.2, Math.cos(a) * 0.2], [a, 0, 0]); }
-  // 太阳能/散热翼：带肋条的板 + 末端散热片阵列
-  for (const s of [-1, 1]) {
-    k.box('panel', [0.32, 0.004, 0.14], [-0.15, 0, s * 0.14]);
-    k.box('dark', [0.32, 0.01, 0.01], [-0.15, 0, s * 0.075]);
-    for (let j = 0; j < 7; j++) k.box('dark', [0.004, 0.006, 0.14], [-0.3 + j * 0.05, 0, s * 0.14]);
-    for (let j = 0; j < 10; j++) k.box('hull', [0.012, 0.06, 0.002], [-0.36 + j * 0.016, 0, s * (0.075 + 0.005)]);
-  }
-  // 推进段：发动机座、喷口环（发光喉部）
-  k.cyl('hull', 0.075, 0.06, 0.08, [-0.5, 0, 0], [0, 0, Math.PI / 2], 20);
-  for (let i = 0; i < 4; i++) {
-    const a = i / 4 * Math.PI * 2 + Math.PI / 4, y = Math.sin(a) * 0.06, z = Math.cos(a) * 0.06;
-    k.cyl('dark', 0.03, 0.045, 0.12, [-0.56, y, z], [0, 0, Math.PI / 2], 16);
-    k.torus('gold', 0.044, 0.004, [-0.62, y, z], [0, Math.PI / 2, 0], 20);
-    k.cyl('blue', 0.03, 0.03, 0.004, [-0.621, y, z], [0, 0, Math.PI / 2], 16);
-  }
-  // 舷号：舰体侧面一排发光标识块
-  for (let i = 0; i < 6; i++) k.box('glow', [0.012, 0.018, 0.002], [-0.1 + i * 0.02, -0.02, 0.0462]);
-  // 航行灯：左红右蓝、舰首白
-  k.box('red', [0.01, 0.01, 0.01], [0.3, 0.06, 0]);
-  k.sphere('red', 0.006, [0.12, 0, -0.22]);
-  k.sphere('blue', 0.006, [0.12, 0, 0.22]);
-  k.sphere('glow', 0.005, [0.73, 0, 0]);
-  for (const s of [-1, 1]) k.sphere(s > 0 ? 'blue' : 'red', 0.005, [-0.15, 0, s * 0.215]);
-  return k.build(mats);
-}
-
-// 护航舰：三种型号（0 驱逐型 · 1 巡洋型 · 2 补给型），按 seed 轮换
-export function buildEscort(mats, seed = 1) {
-  const k = new Kit();
-  const type = seed % 3;
-  const L = 0.4 + (seed % 4) * 0.06 + type * 0.05;
-  const lights = (x) => { k.sphere('red', 0.004, [x, 0, -0.04]); k.sphere('blue', 0.004, [x, 0, 0.04]); };
-  if (type === 0) {
-    // 驱逐型：细长楔形舰体、背鳍、双发
-    k.cyl('hull', 0.018, 0.028, L, [0, 0, 0], [0, 0, Math.PI / 2], 10);
-    k.box('white', [L * 0.55, 0.045, 0.05], [L * 0.08, 0, 0]);
-    k.box('dark', [L * 0.3, 0.05, 0.004], [-L * 0.05, 0.035, 0]);
-    k.lathe('white', [[0, 0], [0.028, 0.02], [0.026, 0.07], [0, 0.12]], [L / 2, 0, 0], [0, 0, -Math.PI / 2], 12);
-    for (const s of [-1, 1]) { k.cyl('dark', 0.014, 0.02, 0.06, [-L / 2 - 0.02, 0, s * 0.022], [0, 0, Math.PI / 2], 10); k.cyl('blue', 0.013, 0.013, 0.003, [-L / 2 - 0.051, 0, s * 0.022], [0, 0, Math.PI / 2], 10); }
-    for (let i = 0; i < 4; i++) k.box('dark', [0.004, 0.052, 0.054], [-L * 0.15 + i * L * 0.12, 0, 0]);
-    k.box('glow', [L * 0.4, 0.003, 0.002], [L * 0.1, 0.01, 0.0256]);
-    lights(L * 0.1);
-  } else if (type === 1) {
-    // 巡洋型：粗短主体、炮塔/传感器塔、侧翼散热板、单个大喷口
-    k.cyl('hull', 0.03, 0.034, L, [0, 0, 0], [0, 0, Math.PI / 2], 14);
-    k.lathe('white', [[0, 0], [0.034, 0.02], [0.03, 0.06], [0.012, 0.1], [0, 0.11]], [L / 2, 0, 0], [0, 0, -Math.PI / 2], 14);
-    for (let i = 0; i < 3; i++) { const x = L * (0.25 - i * 0.2); k.cyl('dark', 0.012, 0.016, 0.02, [x, 0.04, 0], null, 10); k.box('hull', [0.03, 0.006, 0.006], [x + 0.012, 0.045, 0]); }
-    for (const s of [-1, 1]) { k.box('panel', [0.16, 0.003, 0.08], [-L * 0.1, 0, s * 0.075]); for (let j = 0; j < 5; j++) k.box('dark', [0.003, 0.005, 0.08], [-L * 0.1 - 0.06 + j * 0.03, 0, s * 0.075]); }
-    k.cyl('dark', 0.03, 0.042, 0.07, [-L / 2 - 0.03, 0, 0], [0, 0, Math.PI / 2], 14);
-    k.torus('gold', 0.041, 0.004, [-L / 2 - 0.066, 0, 0], [0, Math.PI / 2, 0], 20);
-    k.cyl('blue', 0.03, 0.03, 0.003, [-L / 2 - 0.066, 0, 0], [0, 0, Math.PI / 2], 14);
-    k.torus('glow', 0.0345, 0.0025, [L * 0.3, 0, 0], [0, Math.PI / 2, 0], 24);
-    lights(0);
-  } else {
-    // 补给型：桁架脊 + 挂载货柜 + 尾部推进
-    k.cyl('dark', 0.008, 0.008, L, [0, 0, 0], [0, 0, Math.PI / 2], 8);
-    for (const a of [0, 2.09, 4.19]) k.cyl('dark', 0.004, 0.004, L * 0.8, [0, Math.sin(a) * 0.02, Math.cos(a) * 0.02], [0, 0, Math.PI / 2], 6);
-    const n = 5;
-    for (let i = 0; i < n; i++) {
-      const x = -L * 0.3 + i * L * 0.14;
-      for (const [y, z] of [[0.028, 0], [-0.028, 0], [0, 0.028], [0, -0.028]]) k.box(i % 2 ? 'white' : 'hull', [L * 0.12, 0.024, 0.024], [x, y, z]);
-    }
-    k.box('white', [0.06, 0.04, 0.04], [L / 2 - 0.02, 0, 0]);
-    k.box('glow', [0.004, 0.006, 0.042], [L / 2 + 0.011, 0.008, 0]);
-    k.cyl('dark', 0.02, 0.03, 0.05, [-L / 2 - 0.02, 0, 0], [0, 0, Math.PI / 2], 12);
-    k.cyl('blue', 0.02, 0.02, 0.003, [-L / 2 - 0.046, 0, 0], [0, 0, Math.PI / 2], 12);
-    lights(L * 0.4);
-  }
-  return k.build(mats);
+  });
+  add(disc, new THREE.CylinderGeometry(0.04, 0.05, 0.08, 16), M.white, 0.06, 0, 0, 0, 0, Math.PI / 2);
+  // —— 亮窗居住环：与圆盘交错倾斜的大圆环（片中最醒目的发光环）
+  const hab = new THREE.Group(); hab.position.x = 0.2; hab.rotation.z = 0.5;
+  add(hab, new THREE.TorusGeometry(0.31, 0.016, 10, 180), M.hull, 0, 0, 0, 0, Math.PI / 2);
+  for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; strut(hab, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, Math.cos(a) * 0.3, Math.sin(a) * 0.3), 0.004, M.dark); }
+  const win = [];
+  for (let i = 0; i < 220; i++) { const a = rnd() * Math.PI * 2; if (rnd() < 0.2) continue; win.push(new THREE.Vector3(0.012 * (rnd() < 0.5 ? 1 : -1), Math.cos(a) * 0.31, Math.sin(a) * 0.31)); }
+  const habWin = dots(win, M.warm, 0.007);
+  // 对接臂上的小运输艇（片中有往返运输艇）
+  add(st, new THREE.BoxGeometry(0.05, 0.016, 0.016), M.dark, 0.0, 0.06, 0);
+  add(st, new THREE.ConeGeometry(0.012, 0.04, 8), M.white, 0.03, 0.075, 0, 0, 0, -Math.PI / 2);
+  // 合并静态部分；居住环与圆盘绕主轴缓慢反向旋转
+  g.add(bake(st));
+  const discB = bake(disc); discB.position.copy(disc.position); discB.children.forEach(m => m.geometry.translate(-disc.position.x, 0, 0));
+  const spinD = new THREE.Group(); spinD.position.x = 0.32; discB.position.set(0, 0, 0); spinD.add(discB); g.add(spinD);
+  const habB = bake(hab); const spinH = new THREE.Group(); spinH.position.x = 0.2; spinH.rotation.z = 0.5;
+  habB.children.forEach(m => m.geometry.applyMatrix4(new THREE.Matrix4().copy(hab.matrixWorld).invert()));
+  const habSpin = new THREE.Group(); habSpin.add(habB); habSpin.add(habWin); spinH.add(habSpin); g.add(spinH);
+  // 航行灯
+  g.add(dots([new THREE.Vector3(-0.5, 0, 0.06), new THREE.Vector3(-0.5, 0, -0.06), new THREE.Vector3(0.4, 0.35, 0)], M.red, 0.01));
+  g.add(dots([new THREE.Vector3(0.33, -0.35, 0), new THREE.Vector3(0.33, 0, 0.35), new THREE.Vector3(0.33, 0, -0.35)], M.lamp, 0.008));
+  g.userData.spin = [[spinD, 0.08], [habSpin, -0.12]];      // 绕局部 X
+  return g;
 }
 
 // 方舟号国际空间站（《流浪地球2》）：在太空电梯同步轨道船坞里建造的巨型圆盘。

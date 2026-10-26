@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { Plumes } from '../fx/plumes.js';
 import { earthMaterial, cloudMaterial, atmosphereMaterial, planetMaterial, glowSprite, NOISE } from '../fx/shaders.js';
 import { skyDome, starPoints, streaks, shards, updateShards } from '../fx/space.js';
-import { materials, buildFlagship, buildEscort, buildArk, buildClimber, buildTruss } from '../fx/kit.js';
+import { materials, buildNavigator, buildArk, buildClimber, buildTruss } from '../fx/kit.js';
 import { keyed } from '../story.js';
 import { pbrSet, applyTriplanar } from '../fx/triplanar.js';
 
@@ -182,7 +182,7 @@ export class EarthWorld {
     // 攀爬舱
     this.climber = buildClimber(this.mats); this.climber.scale.setScalar(0.18); grp.add(this.climber);
     this.climberLight = glowSprite(new THREE.Color(1.6, 1.4, 1.1), 0.05, { power: 3 }); grp.add(this.climberLight);
-    // 方舟号国际空间站：站体用独立材质（PBR 三向投影），不影响舰队与攀爬舱
+    // 方舟号国际空间站：站体用独立材质（PBR 三向投影），领航员号共用
     this.station = buildArk(this._arkMats(tex)); this.station.scale.setScalar(0.32); this.station.position.y = L; grp.add(this.station);
   }
 
@@ -207,22 +207,13 @@ export class EarthWorld {
   }
 
   _buildFleet() {
+    // 领航员国际空间站（片中是单座空间站，没有护航舰队）；沿用 this.fleet 作为它的位姿节点
     this.fleet = new THREE.Group(); this.scene.add(this.fleet);
-    const flag = buildFlagship(this.mats); flag.scale.setScalar(0.85); this.fleet.add(flag); this.flagship = flag;
-    this.fleetPlumes = new Plumes(80, { core: 0xe8f4ff, edge: 0x3d7bff, alt: 0x7d6bff, gain: 1.4, grow: 0.5 });
-    const add = (obj, pos, s) => {
-      obj.position.copy(pos); obj.scale.setScalar(s); this.fleet.add(obj);
-      const back = V(-1, 0, 0);
-      this.fleetPlumes.add(pos.clone().add(V(-0.6 * s, 0, 0)), back, 1.2 * s, 0.05 * s, -1, 0.3);
-    };
-    this.fleetPlumes.add(V(-0.52, 0, 0), V(-1, 0, 0), 1.2, 0.07, -1, 0.3);
-    let s = 5; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 22; i++) {
-      const e = buildEscort(this.mats, i);
-      add(e, V(-0.6 - rnd() * 3.5, (rnd() - .5) * 0.9, (rnd() - .5) * 1.8), 0.2 + rnd() * 0.15);
-    }
+    const nav = buildNavigator(this.arkMats); nav.scale.setScalar(0.85); this.fleet.add(nav); this.flagship = nav;
+    this.fleetPlumes = new Plumes(4, { core: 0xe8f4ff, edge: 0x3d7bff, alt: 0x7d6bff, gain: 1.4, grow: 0.5 });
+    this.fleetPlumes.add(V(-0.44, 0, 0), V(-1, 0, 0), 1.0, 0.04, -1, 0.3);
     this.fleetPlumes.commit(); this.fleet.add(this.fleetPlumes.mesh);
-    // 舰队局部 +X 是船头：对准前进方向，局部 +Y 尽量保持朝上
+    // 局部 +X 是船头：对准前进方向，局部 +Y 尽量保持朝上
     this.fleet.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(FWD, UPF, FWD.clone().cross(UPF)));
   }
 
@@ -406,11 +397,11 @@ export class EarthWorld {
         const c = top.clone().addScaledVector(anchor, lerp(0.75, 0.55, u)).addScaledVector(T, lerp(0.42, 0.2, u)).add(V(0, lerp(0.18, 0.26, u), 0));
         return { pos: c, look: top.clone().addScaledVector(anchor, -0.55), fov: 46, climb: 5.62 };
       }],
-      // 05 领航员舰队
+      // 05 领航员国际空间站
       [30.0, 36.4, (u) => {
         const Fl = this.fleet; Fl.updateMatrixWorld();
         const c = Fl.localToWorld(V(lerp(1.0, 0.35, u), lerp(0.22, 0.16, u), lerp(0.75, 0.9, u)));
-        return { pos: c, look: Fl.localToWorld(V(-0.9 - u * 0.6, -0.08, -0.1)), fov: 44, up: UPF };
+        return { pos: c, look: Fl.localToWorld(V(-0.1 - u * 0.15, -0.02, 0)), fov: 44, up: UPF };
       }],
       // 08 木星引力弹射
       [52.0, 60.0, (u) => {
@@ -526,7 +517,7 @@ export class EarthWorld {
     if (t < 96) this.fleet.position.copy(FWD).multiplyScalar(4.6 + (t % 40) * 0.01).addScaledVector(SIDE, 1.7).addScaledVector(UPF, 0.4);
     else this.fleet.position.copy(FWD).multiplyScalar(4.8).addScaledVector(SIDE, -0.9).addScaledVector(UPF, 1.0);
     this.fleetPlumes.uniforms.uTime.value = clock; this.fleetPlumes.uniforms.uIgnite.value = 1e5;
-    this.fleet.children.forEach((c, i) => { if (c !== this.flagship && c !== this.fleetPlumes.mesh) c.position.y += Math.sin(clock * 0.3 + i) * 0.0002; });
+    this.flagship.userData.spin.forEach(([o, w]) => { o.rotation.x = clock * w; });
 
     // 行星背景：只在各自镜头内出现，接近时由暗变亮、略微变大，离开时缩小淡出（镜头切换处另有短暂溶暗）
     const jf = sstep(52, 53.4, t) * (1 - sstep(58.8, 60, t));
@@ -594,7 +585,7 @@ export class EarthWorld {
       { name: '赤道转向阵列', en: 'STEERING ARRAY', get: () => ({ target: W(lonlat(60, 0)).multiplyScalar(1.05), dist: 0.5 }) },
       { name: '太空电梯锚点', en: 'ANCHOR', get: () => ({ target: W(this.anchorV).multiplyScalar(1.03), dist: 0.22 }) },
       { name: '方舟号', en: 'ARK STATION', get: () => ({ target: W(this.anchorV).multiplyScalar(GEO), dist: 0.7 }) },
-      { name: '领航员号舰队', en: 'NAVIGATOR', get: () => ({ target: this.fleet.position.clone(), dist: 1.2 }) },
+      { name: '领航员国际空间站', en: 'NAVIGATOR ISS', get: () => ({ target: this.fleet.position.clone(), dist: 1.2 }) },
     ];
   }
 }
