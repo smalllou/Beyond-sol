@@ -144,46 +144,65 @@ export function buildNavigator(M) {
   };
   // —— 1. 前端巨型辐条轮
   const wheel = new THREE.Group();
-  const RW = 0.4;
-  lattice(wheel, RW, 0.045, 0.07, 120, 0.0035, 0.0012, M.steel, M.hull);
-  lattice(wheel, 0.31, 0.03, 0.05, 90, 0.003, 0.001, M.hull, M.dark);
-  lattice(wheel, 0.2, 0.03, 0.06, 64, 0.003, 0.001, M.hull, M.dark);
-  add(wheel, new THREE.TorusGeometry(0.11, 0.018, 8, 64), M.dark, 0, 0, 0, 0, Math.PI / 2);   // 内圈实体舱环
-  for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; const p = Q(0.11, a, 0); add(wheel, new THREE.BoxGeometry(0.03, 0.035, 0.035), k % 3 ? M.hull : M.steel, p.x, p.y, p.z, a); }
-  // 外缘舱段模块（片中外缘挂满方块设备舱）
-  for (let k = 0; k < 40; k++) { const a = k / 40 * Math.PI * 2 + rnd() * 0.05, p = Q(RW - 0.01, a, 0); if (rnd() < 0.35) continue; add(wheel, new THREE.BoxGeometry(0.06 + rnd() * 0.03, 0.02, 0.025 + rnd() * 0.02), rnd() < 0.5 ? M.hull : M.dark, p.x, p.y, p.z, a); }
-  // 自行车式交叉辐条：从轮毂前后两侧拉到外缘，切向错开
+  const RW = 0.27;
+  // 片中大轮比亮窗环小一圈，内部是密集的深色同心桁架层
+  lattice(wheel, RW, 0.03, 0.06, 110, 0.003, 0.001, M.hull, M.dark);
+  lattice(wheel, 0.225, 0.025, 0.05, 90, 0.0025, 0.0009, M.dark, M.dark);
+  lattice(wheel, 0.18, 0.025, 0.055, 76, 0.0025, 0.0009, M.hull, M.dark);
+  lattice(wheel, 0.135, 0.022, 0.05, 60, 0.0025, 0.0009, M.dark, M.dark);
+  add(wheel, new THREE.TorusGeometry(0.085, 0.016, 8, 64), M.dark, 0, 0, 0, 0, Math.PI / 2);   // 内圈实体舱环
+  for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2; const p = Q(0.085, a, 0); add(wheel, new THREE.BoxGeometry(0.03, 0.028, 0.03), k % 3 ? M.dark : M.hull, p.x, p.y, p.z, a); }
+  // 环间嵌板（深色，部分扇区），让轮面显得密实
+  for (const [r0, r1] of [[0.1, 0.122], [0.148, 0.167], [0.193, 0.212], [0.238, 0.255]]) for (let k = 0; k < 40; k++) {
+    if (rnd() < 0.45) continue; const a = (k + 0.5) / 40 * Math.PI * 2, p = Q((r0 + r1) / 2, a, (rnd() - 0.5) * 0.02);
+    add(wheel, new THREE.BoxGeometry(0.01 + rnd() * 0.02, r1 - r0, 2 * Math.PI * (r0 + r1) / 2 / 40 * 0.8), rnd() < 0.7 ? M.dark : M.hull, p.x, p.y, p.z, a);
+  }
+  // 外缘设备舱
+  for (let k = 0; k < 36; k++) { const a = k / 36 * Math.PI * 2 + rnd() * 0.05, p = Q(RW + 0.01, a, 0); if (rnd() < 0.4) continue; add(wheel, new THREE.BoxGeometry(0.05 + rnd() * 0.03, 0.018, 0.022 + rnd() * 0.015), M.dark, p.x, p.y, p.z, a); }
+  // 自行车式交叉辐条
   for (let k = 0; k < 96; k++) {
     const a = k / 96 * Math.PI * 2, side = k % 2 ? 1 : -1;
-    strut(wheel, Q(0.11, a + side * 0.35, side * 0.03), Q(RW - 0.022, a, side * 0.03), 0.0007, M.steel, 3);
+    strut(wheel, Q(0.085, a + side * 0.35, side * 0.025), Q(RW - 0.016, a, side * 0.025), 0.0006, M.hull, 3);
   }
-  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; strut(wheel, Q(0.04, a, 0), Q(RW - 0.02, a, 0), 0.004, M.hull); }    // 主辐梁
-  add(wheel, new THREE.CylinderGeometry(0.045, 0.05, 0.1, 16), M.dark, 0, 0, 0, 0, 0, Math.PI / 2);
+  for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; strut(wheel, Q(0.035, a, 0), Q(RW - 0.015, a, 0), 0.0035, M.dark); }    // 主辐梁
+  add(wheel, new THREE.CylinderGeometry(0.035, 0.04, 0.05, 16), M.dark, 0, 0, 0, 0, 0, Math.PI / 2);
   // 轮内暖色灯点（舱室窗光）
-  const wl = []; for (let i = 0; i < 160; i++) { const rr = [0.11, 0.2, 0.31][i % 3] + (rnd() - 0.5) * 0.02, a = rnd() * Math.PI * 2; wl.push(Q(rr, a, (rnd() - 0.5) * 0.04)); }
+  const wl = []; for (let i = 0; i < 160; i++) { const rr = [0.085, 0.135, 0.18, 0.225][i % 4] + (rnd() - 0.5) * 0.02, a = rnd() * Math.PI * 2; wl.push(Q(rr, a, (rnd() - 0.5) * 0.04)); }
   wheel.add(dots(wl, M.warm, 0.004));
   wheel.updateMatrixWorld(true);
   const wheelB = bake(wheel); wheelB.add(wheel.children.find(c => c.isInstancedMesh));
-  const spinW = new THREE.Group(); spinW.position.x = 0.36; spinW.add(wheelB); g.add(spinW);
+  const spinW = new THREE.Group(); spinW.position.x = 0.38; spinW.add(wheelB); g.add(spinW);
 
   // —— 2. 亮窗居住环：粗方截面、分节，与大轮成约 65°
   const hab = new THREE.Group();
-  const RH = 0.33, NSEG = 36;
+  const RH = 0.42, NSEG = 44;
   for (let k = 0; k < NSEG; k++) {
     const a = (k + 0.5) / NSEG * Math.PI * 2, len = 2 * Math.PI * RH / NSEG;
     const p = new THREE.Vector3(0, Math.cos(a) * RH, Math.sin(a) * RH);
-    add(hab, new THREE.BoxGeometry(0.04, 0.034, len * 0.86), M.hull, p.x, p.y, p.z, a);
-    add(hab, new THREE.BoxGeometry(0.046, 0.04, len * 0.12), M.dark, p.x, p.y, p.z, a + Math.PI / NSEG);
+    add(hab, new THREE.BoxGeometry(0.05, 0.042, len * 0.86), M.hull, p.x, p.y, p.z, a);
+    add(hab, new THREE.BoxGeometry(0.056, 0.048, len * 0.12), M.dark, p.x, p.y, p.z, a + Math.PI / NSEG);
   }
   for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2 + Math.PI / 4; strut(hab, new THREE.Vector3(0, Math.cos(a) * 0.05, Math.sin(a) * 0.05), new THREE.Vector3(0, Math.cos(a) * (RH - 0.02), Math.sin(a) * (RH - 0.02)), 0.005, M.dark); }
   add(hab, new THREE.TorusGeometry(0.05, 0.012, 8, 32), M.dark, 0, 0, 0, 0, Math.PI / 2);
   hab.updateMatrixWorld(true);
   const habB = bake(hab);
   const hw = [];
-  for (let k = 0; k < NSEG * 7; k++) { const a = (k + 0.5) / (NSEG * 7) * Math.PI * 2; if (k % 7 === 6 || rnd() < 0.12) continue; for (const sx of [0.021, -0.021]) hw.push(new THREE.Vector3(sx, Math.cos(a) * RH, Math.sin(a) * RH)); for (const rr of [RH + 0.018, RH - 0.018]) if (rnd() < 0.6) hw.push(new THREE.Vector3(0, Math.cos(a) * rr, Math.sin(a) * rr)); }
+  for (let k = 0; k < NSEG * 7; k++) { const a = (k + 0.5) / (NSEG * 7) * Math.PI * 2; if (k % 7 === 6 || rnd() < 0.12) continue; for (const sx of [0.026, -0.026]) hw.push(new THREE.Vector3(sx, Math.cos(a) * RH, Math.sin(a) * RH)); for (const rr of [RH + 0.022, RH - 0.022]) if (rnd() < 0.6) hw.push(new THREE.Vector3(0, Math.cos(a) * rr, Math.sin(a) * rr)); }
   habB.add(dots(hw, M.warm, 0.0042));
   const spinH = new THREE.Group(); spinH.add(habB);
   const tiltH = new THREE.Group(); tiltH.position.x = 0.12; tiltH.rotation.z = 1.13; tiltH.add(spinH); g.add(tiltH);
+
+  // —— 2b. 第二道细环：与亮窗环交叉的大导轨环（官方模型顶部那道细弧）
+  const ring2 = new THREE.Group();
+  add(ring2, new THREE.TorusGeometry(0.48, 0.007, 6, 160), M.hull, 0, 0, 0, 0, Math.PI / 2);
+  add(ring2, new THREE.TorusGeometry(0.48, 0.004, 4, 160), M.dark, 0.014, 0, 0, 0, Math.PI / 2);
+  for (let k = 0; k < 4; k++) { const a = k / 4 * Math.PI * 2; strut(ring2, Q(0.05, a, 0), Q(0.47, a, 0), 0.003, M.dark); }
+  ring2.updateMatrixWorld(true);
+  const r2B = bake(ring2);
+  const r2w = []; for (let k = 0; k < 60; k++) { const a = rnd() * Math.PI * 2; r2w.push(Q(0.48, a, 0.009)); }
+  r2B.add(dots(r2w, M.warm, 0.004));
+  const spin2 = new THREE.Group(); spin2.add(r2B);
+  const tilt2 = new THREE.Group(); tilt2.position.x = 0.02; tilt2.rotation.set(0.6, 0, -1.25); tilt2.add(spin2); g.add(tilt2);
 
   // —— 3. 主脊：粗方盒格栅舱段
   const st = new THREE.Group();
@@ -214,9 +233,9 @@ export function buildNavigator(M) {
   st.updateMatrixWorld(true);
   g.add(bake(st));
   // 航行灯
-  g.add(dots([Q(0.2, 0, -0.5), Q(0.2, Math.PI, -0.5), Q(RW + 0.03, Math.PI / 2, 0.36)], M.red, 0.006));
-  g.add(dots([Q(RW + 0.03, 0, 0.36), Q(RW + 0.03, Math.PI, 0.36), Q(RW + 0.03, -Math.PI / 2, 0.36)], M.lamp, 0.008));
-  g.userData.spin = [[spinW, 0.05], [spinH, -0.1]];      // 绕各自局部 X 轴
+  g.add(dots([Q(0.2, 0, -0.5), Q(0.2, Math.PI, -0.5), Q(RW + 0.02, Math.PI / 2, 0.38)], M.red, 0.006));
+  g.add(dots([Q(RW + 0.02, 0, 0.38), Q(RW + 0.02, Math.PI, 0.38), Q(RW + 0.02, -Math.PI / 2, 0.38)], M.lamp, 0.008));
+  g.userData.spin = [[spinW, 0.05], [spinH, -0.1], [spin2, 0.06]];      // 绕各自局部 X 轴
   return g;
 }
 
