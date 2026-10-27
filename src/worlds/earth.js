@@ -4,7 +4,7 @@ import { Plumes } from '../fx/plumes.js';
 import { earthMaterial, cloudMaterial, atmosphereMaterial, planetMaterial, glowSprite, NOISE } from '../fx/shaders.js';
 import { skyDome, starPoints, streaks, shards, updateShards } from '../fx/space.js';
 import { materials, buildNavigator, buildArk, buildClimber, buildTruss } from '../fx/kit.js';
-import { keyed } from '../story.js';
+import { keyed, TELE } from '../story.js';
 import { pbrSet, applyTriplanar } from '../fx/triplanar.js';
 
 const D2R = Math.PI / 180;
@@ -513,11 +513,11 @@ export class EarthWorld {
     const E = this.earth;
     const ch = t < 36 ? 1 : t < 66 ? 2 : t < 96 ? 3 : t < 126 ? 4 : t < 152 ? 5 : 6;
     // 地球自转：第一章角速度从 W0 线性降到 0（对时间积分，seek 到任意时刻结果一致）；
-    // 第二到第五章停转，只有云层飘动；第六章 158 秒掉头后重新开始转
+    // 第二到第五章停转，只有云层飘动；第六章 152 秒（流浪时代Ⅱ）赤道转向阵列点火，地球重新自转，随后掉转发动机方向减速
     const W0 = 0.008, STOP = 36, SPIN_FIXED = 3.70;   // 停转后东亚朝向镜头
     const tc = Math.min(t, STOP);
     let spin = SPIN_FIXED - W0 * STOP / 2 + W0 * (tc - tc * tc / (2 * STOP));
-    if (t >= 158) spin = SPIN_FIXED + 0.5 * 0.00025 * (t - 158) * (t - 158);
+    if (t >= 152) spin = SPIN_FIXED + 0.5 * 0.00025 * (t - 152) * (t - 152);
     E.rotation.set(0.18, spin, 0);
     // 太阳方向与强度
     const heroW0 = this.heroV.clone().applyQuaternion(E.quaternion);
@@ -540,8 +540,9 @@ export class EarthWorld {
     mu.uUnder.value = keyed([[36, 0], [50, 1]], t);
     const heroW = this.heroV.clone().applyQuaternion(E.quaternion);
     mu.uGlowCenter.value.copy(heroW);
-    const engOn = 1 - sstep(51.4, 52.4, t) + sstep(59.6, 61.6, t);
-    mu.uEngineGlow.value = (ch === 1 ? sstep(1, 12, t) * 1.1 : ch === 6 && t > 157 ? 0.9 : 0.5) * (0.15 + 0.85 * engOn);   // 熄火时底座留一点微弱蓝光
+    // 推进发动机开机比例（第一章另有点火前沿）：木星危机部分停机、叛乱处决期间与滑行段全部关闭、155 s 后减速
+    const engOn = t < 36 ? 1 : keyed(TELE.engines, t) / 12000;
+    mu.uEngineGlow.value = (ch === 1 ? sstep(1, 12, t) * 1.1 : ch === 6 ? 0.5 + 0.4 * sstep(153, 156, t) : 0.5) * (0.15 + 0.85 * engOn);   // 熄火时底座留一点微弱蓝光
     const cu = this.cloudMat.uniforms; cu.uSun.value.copy(sun); cu.uSunInt.value = sunInt; cu.uRot.value = clock * 0.0015; cu.uFreeze.value = freeze; cu.uSunCol.value.copy(sunCol);
     this.atmoMat.uniforms.uSun.value.copy(sun); this.atmoMat.uniforms.uSunInt.value = Math.max(sunInt, 0.25);
     this.atmoMat.uniforms.uCol.value.setRGB(lerp(0.28, 0.55, freeze), lerp(0.55, 0.7, freeze), 1.0);
@@ -552,15 +553,15 @@ export class EarthWorld {
     P.uniforms.uTime.value = clock;
     P.uniforms.uIgnite.value = ch === 1 ? t - 1.2 : 1e5;
     let gain = 0.42;
-    if (ch === 6) gain = t < 156.5 ? 0.25 : 0.25 + sstep(156.5, 160, t) * 0.3;
+    if (ch === 6) gain = 0.25 + sstep(155.5, 159, t) * 0.3;
     if (ch >= 4 && ch < 6) gain = 0.38;
-    // 飞掠木星：发动机全部关闭（52 秒熄火，60 秒飞离后重新点火）
-    const on = 1 - sstep(51.4, 52.4, t) + sstep(59.6, 61.6, t);
+    // 飞掠木星：5,000 余座停机（52 s）；60 s 飞离后重新点火；62–65.5 s 叛乱处决期间全部关闭；滑行与掉头期间关闭
+    const on = engOn;
     this.engineOn = on;
     P.uniforms.uGain.value = gain * on;
     P.uniforms.uLen.value = ch === 1 ? 1.0 : ch >= 4 ? 0.85 : 0.92;
-    // 赤道转向阵列：第一章刹车（36 秒自转停止前收尾）、第六章 158 秒重新起转
-    const SP = this.steerPlumes, steerOn = ch === 1 ? 1 - sstep(33.5, 36, t) : ch === 6 ? sstep(157, 160, t) : 0;
+    // 赤道转向阵列：第一章刹车（36 秒自转停止前收尾）、第六章 152 秒重新起转
+    const SP = this.steerPlumes, steerOn = ch === 1 ? 1 - sstep(33.5, 36, t) : ch === 6 ? sstep(152, 154.5, t) : 0;
     SP.uniforms.uTime.value = clock; SP.uniforms.uIgnite.value = P.uniforms.uIgnite.value;
     SP.uniforms.uGain.value = 0.42 * steerOn; SP.uniforms.uLen.value = P.uniforms.uLen.value;
     SP.mesh.visible = steerOn > 0.001;

@@ -1,5 +1,5 @@
 // 仪表盘：把遥测、字幕、事件日志、章节条写进 DOM
-import { CHAPTERS, SUBS, EVENTS, TELE, REGIONS, TAGS, DURATION, keyed, chapterAt } from './story.js';
+import { CHAPTERS, SUBS, EVENTS, TELE, REGIONS, TAGS, DURATION, keyed, chapterAt, velKms, distAU, C_KMS, AU_PER_LY } from './story.js';
 
 const $ = (id) => document.getElementById(id);
 const fmt = (x, d = 1) => x.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -48,7 +48,7 @@ export class HUD {
     $('ro-stage-n').textContent = `STAGE 0${ch.id} / 06`;
     $('ro-stage').textContent = ch.en;
     this.ticks.forEach((el, i) => el.className = i + 1 < ch.id ? 'done' : i + 1 === ch.id ? 'now' : '');
-    const au = Math.pow(10, T('logAU'));
+    const au = distAU(t);   // t ≥ 66 s 为速度积分
     const lightMin = au * 8.317;
     let link;
     if (lightMin < 60) link = `${fmt(lightMin, 1)} 分`;
@@ -66,7 +66,7 @@ export class HUD {
     $('v-newton').textContent = `${fmt(1.5 * Math.max(thrust, 0) / 100 + 0.0001, 2)} × 10¹⁶ N`;
     $('b-thrust').style.width = `${Math.min(100, thrust)}%`;
     const eng = Math.round(T('engines'));
-    $('v-engines').textContent = `${eng.toLocaleString('en-US')} / 12,000`;
+    $('v-engines').textContent = `${eng.toLocaleString('en-US')} / 12,000${eng === 0 && t > 126.5 && t < 154 ? ' · 滑行' : ''}`;
     const lit = Math.round(eng / 120);   // 100 格，每格 120 台
     this.cells.forEach((c, i) => c.className = i < lit ? (this.hot.has(i) && t > 40 ? 'hot' : 'on') : '');
     const core = T('core');
@@ -83,13 +83,13 @@ export class HUD {
     this._wave(clock, res, thrust);
 
     // 导航面板
-    const vel = T('vel');
-    if (t < 98) { $('v-vel').textContent = fmt(vel, 1); $('v-velu').textContent = '公里/秒'; $('v-frame').textContent = '日心系'; }
-    else { const c = Math.min(0.5, Math.max(0, vel)); $('v-vel').textContent = fmt(c, c < 0.01 ? 4 : 3); $('v-velu').textContent = '% c'; $('v-frame').textContent = `≈ ${fmt(c / 100 * 299792, 0)} 公里/秒 · γ ${fmt(1 / Math.sqrt(1 - Math.pow(c / 100, 2)), 4)}`; }
-    $('t-dist').textContent = au < 2000 ? `${fmt(au, au < 10 ? 2 : 1)} AU` : `${fmt(au / 63241, 3)} 光年`;
+    const kms = velKms(t);
+    if (t < 98) { $('v-vel').textContent = fmt(kms, 1); $('v-velu').textContent = '公里/秒'; $('v-frame').textContent = '日心系'; }
+    else { const c = Math.min(0.5, Math.max(0, kms / C_KMS * 100)); $('v-vel').textContent = fmt(c, c < 0.01 ? 4 : 3); $('v-velu').textContent = '% c'; $('v-frame').textContent = `≈ ${fmt(kms, 0)} 公里/秒 · γ ${fmt(1 / Math.sqrt(1 - Math.pow(c / 100, 2)), 4)}`; }
+    $('t-dist').textContent = au < 2000 ? `${fmt(au, au < 10 ? 2 : 1)} AU` : `${fmt(au / AU_PER_LY, 3)} 光年`;
     $('t-light').textContent = link;
-    const ly = Math.max(0.0, 4.2 - au / 63241);
-    $('t-acen').textContent = ch.id === 6 && t > 165 ? '0.0003 光年' : `${fmt(ly, 2)} 光年`;
+    const ly = Math.max(0.0003, 4.2 - au / AU_PER_LY);   // 终点距太阳 4.1997 光年 → 距比邻星 0.0003 光年
+    $('t-acen').textContent = ly < 0.01 ? `${fmt(ly, 4)} 光年` : `${fmt(ly, 2)} 光年`;
     $('t-eta').textContent = '公元 4605';
     const reg = REGIONS.filter(r => r[0] <= t).pop() || REGIONS[0];
     $('t-region').textContent = reg[1]; $('v-zone').textContent = reg[2];

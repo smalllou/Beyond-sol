@@ -7,7 +7,7 @@ const CHORDS = {
   5: [43, 50, 55, 59, 62, 66], // G 大七加九
   6: [38, 45, 50, 54, 57, 62], // D 大调
 };
-const BOOMS = [1.4, 36.2, 52.4, 66.2, 96.2, 126.2, 145.2, 152.2, 157.2, 164.2];
+const BOOMS = [1.4, 36.2, 52.4, 66.2, 96.2, 126.2, 145.2, 152.2, 155.2, 164.2];
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
 export class Score {
@@ -69,7 +69,7 @@ export class Score {
     if (!this.ctx) return;
     const id = t < 36 ? 1 : t < 66 ? 2 : t < 96 ? 3 : t < 126 ? 4 : t < 152 ? 5 : 6;
     if (id !== this.ch) { this.ch = id; this._chord(id); }
-    if (playing && this.lastT >= 0 && t > this.lastT && t - this.lastT < 0.5) for (const b of BOOMS) if (this.lastT < b && t >= b) this._boom(b === 1.4 || b === 157.2 ? 1.2 : 0.8);
+    if (playing && this.lastT >= 0 && t > this.lastT && t - this.lastT < 0.5) for (const b of BOOMS) if (this.lastT < b && t >= b) this._boom(b === 1.4 || b === 155.2 ? 1.2 : 0.8);
     this.lastT = t;
     const now = this.ctx.currentTime;
     this.rumble.gain.setTargetAtTime(playing ? 0.05 + Math.min(thrust, 110) / 100 * (id === 1 || id === 6 ? 0.55 : 0.18) : 0.02, now, 0.4);
