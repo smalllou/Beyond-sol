@@ -231,8 +231,11 @@ export class GalaxyWorld {
     }));
     this.bubble.scale.set(1, 0.7, 1.2); S.add(this.bubble);
     // 标记框（“你在这里”）
-    const ring = new THREE.RingGeometry(0.92, 1, 64);
-    this.marker = new THREE.Mesh(ring, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.5, 1.7, 2.2), transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
+    // 屏幕上恒定大小的小定位环：本地泡 / 猎户臂直径约 3% 画面高（半径约 8 px，线宽约 1.8 px），
+    // 银河全景直径约 2%（半径约 5.4 px，线宽约 1.7 px）；两段用不同内径，保持线宽而不变成细线或实心点
+    this.ringGeoNear = new THREE.RingGeometry(0.78, 1, 64);
+    this.ringGeoFar = new THREE.RingGeometry(0.68, 1, 64);
+    this.marker = new THREE.Mesh(this.ringGeoNear, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.5, 1.7, 2.2), transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
     S.add(this.marker);
     this.state = {};
   }
@@ -304,7 +307,10 @@ export class GalaxyWorld {
     this.core.material.uniforms.uOp.value = sstep(3.5, 4.4, ld) * 0.55;
     // 标记：在太阳处画框
     this.marker.position.set(0, 0, 0); this.marker.lookAt(cam.position);
-    this.marker.scale.setScalar(dc * 0.03);
+    const far = sstep(4.4, 4.6, ld), ringFrac = lerp(0.03, 0.02, far), tanH = Math.tan(cam.fov * Math.PI / 360);
+    this.marker.geometry = far > 0.5 ? this.ringGeoFar : this.ringGeoNear;   // 切换处（ld 4.4–4.6）标记不可见
+    this.marker.scale.setScalar(ringFrac * dc * tanH);   // 环半径 1 → 直径 = ringFrac × 画面高
+    this.ringPx = ringFrac * 270;                          // 环半径（像素，按 540 高）
     // 本地泡 / 猎户臂（ld 2.0–4.4）标出太阳；银河全景（ld ≥ 4.6）再以较淡的框标出，便于在银盘里找到太阳系
     this.marker.material.opacity = sstep(2.0, 2.6, ld) * (1 - sstep(4.0, 4.4, ld)) * 0.8 + sstep(4.6, 4.9, ld) * 0.5;
     this.marker.visible = this.marker.material.opacity > 0.01;
@@ -314,7 +320,8 @@ export class GalaxyWorld {
     this.sunLabel.material.opacity *= Math.max(sstep(129.6, 130.6, t), mOp > nearOp ? 1 : 0);
     if (mOp > nearOp) {
       const cam = this.camera; cam.updateMatrixWorld(); const q = V(0, 0, 0).project(cam), sx = (q.x + 1) * 480, lw = this.sunLabel.scale.x / LABEL_SY * LABEL_H_PX;
-      this.sunLabel.center.set(sx + lw > 685 ? 1.06 : -0.06, -0.6);   // 拉远时放在标记框上方外侧，超出右侧仪表则放左上
+      const cy = -(this.ringPx + 3) / LABEL_H_PX;   // 标签底边在环顶之上约 3 px
+      this.sunLabel.center.set(sx + lw > 685 ? 1.0 : 0.0, cy);   // 拉远时放在定位环正上方外侧（左缘对齐环心），超出右侧仪表则右缘对齐
       this.acenLabel.material.opacity *= 1 - mOp; this.earthLabel.material.opacity *= 1 - mOp;
     }
     // 银河缓慢自转（仅视觉）
