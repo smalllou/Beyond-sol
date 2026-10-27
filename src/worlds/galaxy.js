@@ -3,6 +3,30 @@ import * as THREE from 'three';
 import { glowSprite } from '../fx/shaders.js';
 import { skyDome, starPoints } from '../fx/space.js';
 import { NEAR_STARS, NEAR_NAMES } from '../data/near-stars.js';
+import { distAU, AU_PER_LY } from '../story.js';
+
+// 文字标注：画布贴图精灵（sizeAttenuation: false → 屏幕上恒定大小）；中文用 HUD 的 SC（NotoSansSC-hud），英文用 Raj
+// 画面高 540 px、fov 45° 时 scale.y = 像素高 / 270 × tan(22.5°)
+const LABEL_H_PX = 46, LABEL_SY = LABEL_H_PX / 270 * Math.tan(22.5 * Math.PI / 180);
+function makeLabel(zh, en, center, color = 'rgba(205,228,255,0.95)', k = 1) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false, opacity: 0, sizeAttenuation: false }));
+  sp.center.set(center[0], center[1]); sp.scale.set(LABEL_SY * 4 * k, LABEL_SY * k, 1); sp.renderOrder = 10;
+  const draw = () => {
+    const c = document.createElement('canvas'); let g = c.getContext('2d');
+    // 画布宽度按文字实际宽度裁切，使标签能紧贴锚点（左右两侧都可）
+    g.font = '500 92px SC, sans-serif'; const w1 = g.measureText(zh).width; g.font = '600 60px Raj, sans-serif'; const w2 = g.measureText(en).width;
+    c.width = Math.ceil(Math.max(w1, w2) + 28); c.height = 256; g = c.getContext('2d');
+    sp.scale.set(LABEL_SY * k * c.width / 256, LABEL_SY * k, 1);
+    g.shadowColor = 'rgba(0,0,0,0.85)'; g.shadowBlur = 10; g.textBaseline = 'middle';
+    g.fillStyle = color; g.font = '500 92px SC, sans-serif'; g.fillText(zh, 10, 82);
+    g.fillStyle = 'rgba(165,195,235,0.82)'; g.font = '600 60px Raj, sans-serif'; g.fillText(en, 12, 192);
+    const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; tx.anisotropy = 4;
+    if (sp.material.map) sp.material.map.dispose(); sp.material.map = tx; sp.material.needsUpdate = true;
+  };
+  draw();
+  if (document.fonts) Promise.all([document.fonts.load('500 92px SC', zh), document.fonts.load('600 60px Raj', en)]).then(draw).catch(() => {});
+  return sp;
+}
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const lerp = (a, b, u) => a + (b - a) * u;
@@ -182,8 +206,15 @@ export class GalaxyWorld {
     this.acen = glowSprite(new THREE.Color(2.4, 1.3, 0.7), 1.0, { power: 3, opacity: 1 }); this.acen.position.copy(this.acenPos); S.add(this.acen);
     this.route = new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), this.acenPos]), new THREE.LineBasicMaterial({ color: new THREE.Color(1.6, 1.8, 2.4), transparent: true, opacity: 0.9 }));
     S.add(this.route);
-    this.routeDash = new THREE.Line(new THREE.BufferGeometry().setFromPoints([this.acenPos, this.acenPos.clone().multiplyScalar(2.2)]), new THREE.LineDashedMaterial({ color: 0x8fa8cc, dashSize: 0.2, gapSize: 0.2, transparent: true, opacity: 0.5 }));
+    // 航线：太阳 → 地球（实线，已走过）、地球 → 比邻星（虚线，前方）；地球位置每帧取 HUD 同一距离函数
+    this.routeDash = new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), this.acenPos.clone()]), new THREE.LineDashedMaterial({ color: 0x8fa8cc, dashSize: 0.2, gapSize: 0.2, transparent: true, opacity: 0.5 }));
     this.routeDash.computeLineDistances(); S.add(this.routeDash);
+    this.routeDir = this.acenPos.clone().normalize();
+    // 地球位置标记（小圆点 + 光晕）与文字
+    this.earthDot = glowSprite(new THREE.Color(1.2, 1.8, 2.8), 0.12, { power: 2.4, opacity: 1 }); S.add(this.earthDot);
+    this.sunLabel = makeLabel('太阳系', 'SOLAR SYSTEM', [-0.06, -0.12]); S.add(this.sunLabel);
+    this.acenLabel = makeLabel('比邻星 · 4.2 光年', 'PROXIMA CENTAURI · 4.2 LY', [-0.05, 0.5], 'rgba(255,214,170,0.95)'); this.acenLabel.position.copy(this.acenPos); S.add(this.acenLabel);
+    this.earthLabel = makeLabel('地球', 'EARTH', [-0.08, 1.12], 'rgba(170,215,255,0.98)', 0.85); S.add(this.earthLabel);
     // 本地泡
     this.bubble = new THREE.Mesh(new THREE.SphereGeometry(300, 64, 32), new THREE.ShaderMaterial({
       uniforms: { uOp: { value: 0 } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
@@ -204,6 +235,22 @@ export class GalaxyWorld {
     this.marker = new THREE.Mesh(ring, new THREE.MeshBasicMaterial({ color: new THREE.Color(1.5, 1.7, 2.2), transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false }));
     S.add(this.marker);
     this.state = {};
+  }
+
+  // 文字摆放：避开两侧仪表（960 宽时 275–685 px），三个标签互不重叠
+  _placeLabels(E) {
+    const cam = this.camera; cam.updateMatrixWorld(); cam.updateProjectionMatrix();
+    const px = (v) => { const p = v.clone().project(cam); return { x: (p.x + 1) * 480, y: (1 - p.y) * 270 }; };
+    const S = px(V(0, 0, 0)), A = px(this.acenPos), Ep = px(E);
+    const w = (sp) => sp.scale.x / LABEL_SY * LABEL_H_PX;   // 标签像素宽度（画布已按文字裁切）
+    // 三点在屏幕上常挤在一起：比邻星标签放在点上方（靠右，超出右侧仪表则改为左对齐到点），
+    // 太阳系与地球标签都放在点下方、分处两侧（地球在太阳哪边，地球标签就放哪边）
+    this.acenLabel.center.set(A.x + w(this.acenLabel) > 685 ? 0.95 : 0.05, -0.3);
+    const eRight = Ep.x >= S.x;
+    let sunRight = !eRight; if (!sunRight && S.x - w(this.sunLabel) < 275) sunRight = true;
+    this.sunLabel.center.set(sunRight ? -0.05 : 1.05, 1.1);
+    let eR = eRight; if (eR && Ep.x + w(this.earthLabel) > 685) eR = false; if (eR === sunRight && Math.abs(Ep.x - S.x) < 60) eR = !sunRight;
+    this.earthLabel.center.set(eR ? -0.05 : 1.05, 1.1);
   }
 
   // 镜头：连续拉远（对数）
@@ -231,7 +278,19 @@ export class GalaxyWorld {
     this.sky.position.copy(cam.position);
     // 近景：邻近恒星与航线
     const nearOp = 1 - sstep(1.6, 2.6, ld);
-    this.route.material.opacity = nearOp; this.routeDash.material.opacity = nearOp * 0.5;
+    this.route.material.opacity = nearOp; this.routeDash.material.opacity = nearOp * 0.6;
+    // 地球在航线上的位置 = HUD「距太阳」（光年）
+    const ly = Math.min(4.2, distAU(Math.max(126, t)) / AU_PER_LY), E = this.routeDir.clone().multiplyScalar(ly);
+    { const a = this.route.geometry.attributes.position; a.setXYZ(1, E.x, E.y, E.z); a.needsUpdate = true; this.route.geometry.computeBoundingSphere(); }
+    { const a = this.routeDash.geometry.attributes.position; a.setXYZ(0, E.x, E.y, E.z); a.needsUpdate = true; this.routeDash.geometry.computeBoundingSphere(); this.routeDash.computeLineDistances(); }
+    this.earthDot.position.copy(E); this.earthDot.scale.setScalar(Math.max(0.08, dc * 0.018)); this.earthDot.material.uniforms.uOp.value = nearOp; this.earthDot.visible = nearOp > 0.01;
+    this.earthLabel.position.copy(E); this.earthLabel.material.opacity = nearOp * 0.95; this.earthLabel.visible = nearOp > 0.01;
+    this.acenLabel.material.opacity = nearOp * 0.95; this.acenLabel.visible = nearOp > 0.01;
+    this.earthLy = ly;
+    // 片头章节卡（126–130.5 s）期间不显示近景文字，之后淡入
+    const lin = sstep(129.6, 130.6, t);
+    this.earthLabel.material.opacity *= lin; this.acenLabel.material.opacity *= lin;
+    this._placeLabels(E);
     this.acen.visible = this.sun.visible = ld < 3.0;
     const sc = Math.max(0.3, dc * 0.025);
     this.sun.scale.setScalar(sc); this.acen.scale.setScalar(sc * 0.85);
@@ -246,8 +305,18 @@ export class GalaxyWorld {
     // 标记：在太阳处画框
     this.marker.position.set(0, 0, 0); this.marker.lookAt(cam.position);
     this.marker.scale.setScalar(dc * 0.03);
-    this.marker.material.opacity = sstep(2.0, 2.6, ld) * (1 - sstep(4.0, 4.4, ld)) * 0.8;
+    // 本地泡 / 猎户臂（ld 2.0–4.4）标出太阳；银河全景（ld ≥ 4.6）再以较淡的框标出，便于在银盘里找到太阳系
+    this.marker.material.opacity = sstep(2.0, 2.6, ld) * (1 - sstep(4.0, 4.4, ld)) * 0.8 + sstep(4.6, 4.9, ld) * 0.5;
     this.marker.visible = this.marker.material.opacity > 0.01;
+    // 「太阳系」标签：近景随航线淡出，拉远后跟随太阳处的标记框淡入淡出（较暗）
+    const mOp = this.marker.material.opacity / 0.8;
+    this.sunLabel.material.opacity = Math.max(nearOp * 0.95, mOp * 0.7); this.sunLabel.visible = this.sunLabel.material.opacity > 0.01;
+    this.sunLabel.material.opacity *= Math.max(sstep(129.6, 130.6, t), mOp > nearOp ? 1 : 0);
+    if (mOp > nearOp) {
+      const cam = this.camera; cam.updateMatrixWorld(); const q = V(0, 0, 0).project(cam), sx = (q.x + 1) * 480, lw = this.sunLabel.scale.x / LABEL_SY * LABEL_H_PX;
+      this.sunLabel.center.set(sx + lw > 685 ? 1.06 : -0.06, -0.6);   // 拉远时放在标记框上方外侧，超出右侧仪表则放左上
+      this.acenLabel.material.opacity *= 1 - mOp; this.earthLabel.material.opacity *= 1 - mOp;
+    }
     // 银河缓慢自转（仅视觉）
     this.gal.rotation.y = 0;
     const px = renderer_px();
@@ -258,7 +327,7 @@ export class GalaxyWorld {
 
   destinations() {
     return [
-      { name: '太阳 · 你在这里', en: 'SOL', get: () => ({ target: V(0, 0, 0), dist: 12 }) },
+      { name: '太阳系', en: 'SOL', get: () => ({ target: V(0, 0, 0), dist: 12 }) },
       { name: '比邻星', en: 'PROXIMA', get: () => ({ target: this.acenPos.clone(), dist: 3 }) },
       { name: '本地泡', en: 'LOCAL BUBBLE', get: () => ({ target: V(0, 0, 0), dist: 900 }) },
       { name: '猎户臂', en: 'ORION SPUR', get: () => ({ target: V(0, 0, 0), dist: 9000 }) },

@@ -453,7 +453,12 @@ export class EarthWorld {
         return { pos, look: look.addScaledVector(r, -3.0).add(V(0, 0.5, 0)), fov: 48 };
       }],
       // 10 海王星
-      [66.0, 76.4, (u) => orbit(V(lerp(3.0, 3.6, u), lerp(0.5, 0.8, u), lerp(2.6, 2.2, u)), lerp(4.9, 4.6, u), 44, V(-0.35, 0.1, -0.25))],
+      // 地球略偏画面右侧，给左上方远处的海王星留出位置（两者在画面上不重叠）
+      [66.0, 76.4, (u) => {
+        const o = orbit(V(lerp(3.0, 3.6, u), lerp(0.5, 0.8, u), lerp(2.6, 2.2, u)), lerp(4.9, 4.6, u), 44, V(-0.35, 0.1, -0.25));
+        const r = o.look.clone().sub(o.pos).normalize().cross(V(0, 1, 0)).normalize();
+        o.look.addScaledVector(r, -0.45); return o;
+      }],
       // 11 柯伊伯带
       [76.4, 86.0, (u) => orbit(V(lerp(2.5, 2.1, u), lerp(0.35, 0.18, u), lerp(1.9, 1.7, u)), lerp(4.6, 4.3, u), 48)],
       // 12 日球层顶
@@ -660,7 +665,12 @@ export class EarthWorld {
       this.ringMat.uniforms.uC.value.copy(this.saturn.position); this.ringMat.uniforms.uSun.value.copy(sun); this.ringMat.uniforms.uSunInt.value = sunInt * 1.6; this.ringMat.uniforms.uOp.value = sf;
     }
     this.neptune.visible = t >= 66.4 && t < 76.4 && nf > 0.001;
-    if (this.neptune.visible) { const u = (t - 66.4) / 10; this.neptune.position.set(lerp(-17, -11, sstep(66.4, 70, t)) - 2 * sstep(74, 76.4, t), lerp(3.2, 2.4, u), lerp(-13.5, -11, sstep(66.4, 70, t)) - 2 * sstep(74, 76.4, t)); }
+    if (this.neptune.visible && sh) {
+      // 相对相机放置：左上方远处（约 74 地球半径，画面约 x 35%、y 30%），避开左侧仪表与字幕，与地球分开
+      const u = (t - 66.4) / 10, cf = sh.look.clone().sub(sh.pos).normalize(), cr = cf.clone().cross(V(0, 1, 0)).normalize(), cu = cr.clone().cross(cf);
+      this.neptune.position.copy(sh.pos).addScaledVector(cf, lerp(78, 70, u)).addScaledVector(cr, lerp(-18, -16.5, u)).addScaledVector(cu, lerp(14, 13, u));
+      this.neptune.rotation.y = clock * 0.05;
+    }
     for (const [p, f] of [[this.jupiter, jf], [this.saturn, sf], [this.neptune, nf]]) { const m = p.material.uniforms; m.uSun.value.copy(sun); m.uSunInt.value = Math.max(sunInt, 0.35) * 1.25 * f; m.uRimGain.value = p.userData.rimGain * f; }
 
     // 星际效果
