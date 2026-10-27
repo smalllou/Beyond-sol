@@ -1,0 +1,11 @@
+import { chromium } from 'playwright';
+import { createServer } from 'vite';
+const server = await createServer({ server: { port: 5195 }, logLevel: 'error' });
+await server.listen();
+const b = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const p = await b.newPage({ viewport: { width: 320, height: 180 } });
+await p.goto(`http://localhost:5195/?t=1&dpr=1`);
+await p.waitForFunction(() => window.__ready, null, { timeout: 240000 });
+const r = await p.evaluate(() => { const out = []; let prev = null, pf = null; for (let t = 0; t < 36.3; t += 0.1) { window.__seek(t); const W = window.__dbg.world; const s = W.shot(t); const f = s.look.clone().sub(s.pos).normalize(); if (prev) out.push([t.toFixed(1), (s.pos.distanceTo(prev) / 0.1).toFixed(2), (Math.acos(Math.min(1, f.dot(pf))) * 57.3 / 0.1).toFixed(1), s.pos.length().toFixed(2)]); prev = s.pos.clone(); pf = f; } return out; });
+console.log(r.filter((x, i) => i % 5 == 0 || +x[2] > 40).map(x => x.join(' ')).join('\n'));
+await b.close(); await server.close();
