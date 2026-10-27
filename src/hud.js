@@ -42,7 +42,7 @@ export class HUD {
     const T = (k) => keyed(TELE[k], t);
     // 顶栏
     const year = Math.floor(T('year'));
-    const secs = 18 * 3600 + 120 + t * 1.0 + (year - 2078) * 37;
+    const secs = 18 * 3600 + 120 + t * 1.0 + (year - 2058) * 37;
     const hh = Math.floor(secs / 3600) % 24, mm = Math.floor(secs / 60) % 60, ss = Math.floor(secs) % 60;
     $('ro-clock').textContent = `${year} · ${pad(hh)}:${pad(mm)}:${pad(ss)}`;
     $('ro-stage-n').textContent = `STAGE 0${ch.id} / 06`;
@@ -88,9 +88,9 @@ export class HUD {
     else { const c = Math.min(0.5, Math.max(0, vel)); $('v-vel').textContent = fmt(c, c < 0.01 ? 4 : 3); $('v-velu').textContent = '% c'; $('v-frame').textContent = `≈ ${fmt(c / 100 * 299792, 0)} 公里/秒 · γ ${fmt(1 / Math.sqrt(1 - Math.pow(c / 100, 2)), 4)}`; }
     $('t-dist').textContent = au < 2000 ? `${fmt(au, au < 10 ? 2 : 1)} AU` : `${fmt(au / 63241, 3)} 光年`;
     $('t-light').textContent = link;
-    const ly = Math.max(0.0, 4.3 - au / 63241);
+    const ly = Math.max(0.0, 4.2 - au / 63241);
     $('t-acen').textContent = ch.id === 6 && t > 165 ? '0.0003 光年' : `${fmt(ly, 2)} 光年`;
-    $('t-eta').textContent = '公元 4578';
+    $('t-eta').textContent = '公元 4605';
     const reg = REGIONS.filter(r => r[0] <= t).pop() || REGIONS[0];
     $('t-region').textContent = reg[1]; $('v-zone').textContent = reg[2];
     $('t-head').textContent = `l ${fmt(315.7 - t * 0.02, 1)}° b ${fmt(-0.7 + t * 0.003, 1)}°`;

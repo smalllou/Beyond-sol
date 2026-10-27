@@ -2,13 +2,18 @@
 import * as THREE from 'three';
 import { planetMaterial, glowSprite, NOISE } from '../fx/shaders.js';
 import { skyDome, starPoints } from '../fx/space.js';
+import { yearAt } from '../story.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const lerp = (a, b, u) => a + (b - a) * u;
 const sstep = (a, b, x) => { const u = Math.min(1, Math.max(0, (x - a) / (b - a))); return u * u * (3 - 2 * u); };
 const ENGINE_LON = 110 * Math.PI / 180; // 发动机半球中心经度（东亚）
 export const artR = (au) => 6 * Math.pow(au, 0.6);
-const T_FLY = 44.2; // 最后一个远日点，掠过木星（仍在全景镜头内，45.2 s 切太阳近景）
+// 航迹时间轴（与 HUD 年份、行星公转共用 yearAt）：36–48 s 绕日椭圆，48–52 s 最后一圈爬向木星，
+// 52 s 在最后一个远日点掠过木星（2075 年，与地球世界的木星镜头 52–60 s 对齐），之后在黄道面内飞向土星轨道，
+// 60 s 掠过土星（仍在黄道面上），过了土星才向南偏转 44.8° 飞向比邻星
+const T_LAP = 48, T_FLY = 52, T_SAT = 60;
+const Y0 = 2058, yrs = (t) => yearAt(t) - Y0;
 
 const PLANETS = [
   // 名称, 贴图, AU, 半径, 公转周期（年）, 初相, 自转轴倾角（度，空间中固定）
@@ -92,13 +97,16 @@ export class SolarWorld {
     this.earthGlow = glowSprite(new THREE.Color(0.6, 0.75, 1.8), 2.4, { power: 3, opacity: 0.8 }); S.add(this.earthGlow);
     this.earthOrbit = this._orbit(artR(1), 0x9fc2ff, 0.5); S.add(this.earthOrbit);
     this._buildPath();
-    // 木星引力弹弓：初相按地球最后一个远日点（T_FLY）的方位反推，木星恰在地球前方外侧
+    // 木星引力弹弓：初相按 52 s（同一条年份曲线）地球最后一个远日点的方位反推，木星恰在远日点前方外侧擦身而过
     const jup = this.planets.find((p) => p.key === 'jupiter');
-    const fa = this._fly.ang + 0.1;
-    jup.ph = fa - ((T_FLY - 36) * (15 / 16)) / jup.per * Math.PI * 2;
+    jup.ph = this._fly.ang + 0.08 - yrs(T_FLY) / jup.per * Math.PI * 2;
+    // 土星：60 s 时恰在航迹旁（黄道面内），航迹从土星轨道内侧掠过
+    const sat = this.planets.find((p) => p.key === 'saturn');
+    const ps = this.pathPos(T_SAT);
+    sat.ph = Math.atan2(ps.z, ps.x) - yrs(T_SAT) / sat.per * Math.PI * 2;
     // 完整航线：走过的亮青实线，前方暗淡流动虚线；10 AU 之后继续斜向黄道面以南（比邻星方向）渐隐
-    const N = 1200, T1 = 64, pts = [], aS = new Float32Array(N + 1), aL = new Float32Array(N + 1), aF = new Float32Array(N + 1);
-    for (let i = 0; i <= N; i++) { const x = 36 + (T1 - 36) * i / N; pts.push(this.pathPos(x)); aS[i] = (x - 36) / 16; aF[i] = 1 - sstep(52, T1, x); if (i) aL[i] = aL[i - 1] + pts[i].distanceTo(pts[i - 1]); }
+    const N = 1400, T1 = 70, pts = [], aS = new Float32Array(N + 1), aL = new Float32Array(N + 1), aF = new Float32Array(N + 1);
+    for (let i = 0; i <= N; i++) { const x = 36 + (T1 - 36) * i / N; pts.push(this.pathPos(x)); aS[i] = (x - 36) / 16; aF[i] = 1 - sstep(60, T1, x); if (i) aL[i] = aL[i - 1] + pts[i].distanceTo(pts[i - 1]); }
     const tg = new THREE.BufferGeometry().setFromPoints(pts);
     tg.setAttribute('aS', new THREE.BufferAttribute(aS, 1)); tg.setAttribute('aL', new THREE.BufferAttribute(aL, 1)); tg.setAttribute('aF', new THREE.BufferAttribute(aF, 1));
     this.trackMat = new THREE.ShaderMaterial({
@@ -110,14 +118,14 @@ export class SolarWorld {
           gl_FragColor = vec4(c * uA * vF, 1.0); }`,
     });
     this.track = new THREE.Line(tg, this.trackMat); this.track.frustumCulled = false; S.add(this.track);
-    // 比邻星方向标注：放在 10 AU 之后的航线上
-    const lp = this.pathPos(59);
+    // 比邻星方向标注：放在过了土星、向南偏转之后的航线上
+    const lp = this.pathPos(65);
     this.trackLabel = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, depthTest: false, opacity: 0 }));
     this.trackLabel.position.copy(lp); this.trackLabel.center.set(-0.06, 0.5); this.trackLabel.scale.set(20, 5, 1); S.add(this.trackLabel);
     const drawLabel = () => {
       const c = document.createElement('canvas'); c.width = 1024; c.height = 256; const g = c.getContext('2d');
-      g.fillStyle = 'rgba(200,228,255,0.95)'; g.font = '600 76px SC, sans-serif'; g.textBaseline = 'middle'; g.fillText('比邻星 · 4.3 光年', 8, 92);
-      g.fillStyle = 'rgba(160,200,255,0.75)'; g.font = '500 44px Raj, sans-serif'; g.fillText('PROXIMA CENTAURI  ·  4.3 LY', 10, 184);
+      g.fillStyle = 'rgba(200,228,255,0.95)'; g.font = '600 76px SC, sans-serif'; g.textBaseline = 'middle'; g.fillText('比邻星 · 4.2 光年', 8, 92);
+      g.fillStyle = 'rgba(160,200,255,0.75)'; g.font = '500 44px Raj, sans-serif'; g.fillText('PROXIMA CENTAURI  ·  4.2 LY', 10, 184);
       const tx = new THREE.CanvasTexture(c); tx.colorSpace = THREE.SRGBColorSpace; this.trackLabel.material.map = tx; this.trackLabel.material.needsUpdate = true;
     };
     drawLabel();
@@ -274,8 +282,12 @@ export class SolarWorld {
     const radial = V(Math.cos(ang), 0, Math.sin(ang)), pro = V(-Math.sin(ang), 0, Math.cos(ang));
     // 甩出方向：外向偏前进方向 40°，再压到黄道面以南 44.8°（比邻星黄纬约 −44.8°）
     const hz = radial.clone().multiplyScalar(Math.cos(0.7)).addScaledVector(pro, Math.sin(0.7)).normalize();
-    const lat = -44.8 * Math.PI / 180, D = hz.multiplyScalar(Math.cos(lat)).add(V(0, Math.sin(lat), 0)).normalize();
-    this._fly = { P: fly, ang, R, pro, D, A0 };
+    const lat = -44.8 * Math.PI / 180, D = hz.clone().multiplyScalar(Math.cos(lat)).add(V(0, Math.sin(lat), 0)).normalize();
+    // 黄道面内段长度：60 s 时恰好到达土星轨道内侧 0.5（P(60) = P0 + 2.5·LEN·hz）
+    const Rs = artR(9.54) - 0.5, b = fly.dot(hz), k = -b + Math.sqrt(b * b - fly.lengthSq() + Rs * Rs);
+    // 最后一圈的起点：远日点 f = 2.5/3.5（48 s），之前 2.5 圈在 36–48 s 内走完
+    const iA = Math.round(this._lap.M * 2.5 / LAPS);
+    this._fly = { P: fly, ang, R, pro, D, H: hz, A0, LEN: k / 2.5, cA: this._lap.cum[iA] };
   }
   _lapPos(f) {
     const L = this._lap, r = artR(L.rAU(f)), a = 2.0 + f * L.PH;
@@ -284,17 +296,24 @@ export class SolarWorld {
   pathPos(x) {
     if (x <= 36) return this._lapPos(0);
     if (x <= T_FLY) {
-      const L = this._lap, target = (x - 36) / (T_FLY - 36) * L.tot;
+      // 用年份（开普勒第二定律的时间）推进：36–48 s 走完前 2.5 圈，48–52 s 走最后一圈到木星
+      const L = this._lap, F = this._fly, y = yrs(x), yA = yrs(T_LAP), yF = yrs(T_FLY);
+      const target = y <= yA ? (y / yA) * F.cA : F.cA + (y - yA) / (yF - yA) * (L.tot - F.cA);
       let lo = 0, hi = L.M; while (hi - lo > 1) { const m = (lo + hi) >> 1; if (L.cum[m] < target) lo = m; else hi = m; }
       const f = (lo + (target - L.cum[lo]) / Math.max(1e-9, L.cum[hi] - L.cum[lo])) / L.M;
       return this._lapPos(f);
     }
-    // 掠过木星后：Hermite 曲线从远日点的切向转到甩出方向，之后匀速直线
-    const F = this._fly, u = Math.min(1, (x - T_FLY) / 3), LEN = 9;
-    const P0 = F.P, P1 = F.P.clone().addScaledVector(F.D, LEN), T0 = F.pro.clone().multiplyScalar(LEN * 0.9), T1 = F.D.clone().multiplyScalar(LEN);
-    if (x - T_FLY >= 3) return P1.clone().addScaledVector(F.D, (x - T_FLY - 3) * LEN / 3 * 0.9);
-    const h00 = 2 * u ** 3 - 3 * u ** 2 + 1, h10 = u ** 3 - 2 * u ** 2 + u, h01 = -2 * u ** 3 + 3 * u ** 2, h11 = u ** 3 - u ** 2;
-    return P0.clone().multiplyScalar(h00).addScaledVector(T0, h10).addScaledVector(P1, h01).addScaledVector(T1, h11);
+    // 掠过木星后：Hermite 曲线从远日点的切向转到黄道面内的甩出方向，匀速飞到土星轨道（60 s）；
+    // 过了土星再用一段 Hermite 曲线向南偏转 44.8°，之后沿比邻星方向匀速直线
+    const F = this._fly, LEN = F.LEN, v = LEN / 3 * 0.9;
+    const herm = (P0, T0, P1, T1, u) => { const h00 = 2 * u ** 3 - 3 * u ** 2 + 1, h10 = u ** 3 - 2 * u ** 2 + u, h01 = -2 * u ** 3 + 3 * u ** 2, h11 = u ** 3 - u ** 2; return P0.clone().multiplyScalar(h00).addScaledVector(T0, h10).addScaledVector(P1, h01).addScaledVector(T1, h11); };
+    const P1 = F.P.clone().addScaledVector(F.H, LEN);
+    if (x < T_FLY + 3) return herm(F.P, F.pro.clone().multiplyScalar(LEN * 0.9), P1, F.H.clone().multiplyScalar(LEN), (x - T_FLY) / 3);
+    const Ps = P1.clone().addScaledVector(F.H, (T_SAT - T_FLY - 3) * v);
+    if (x < T_SAT) return P1.clone().addScaledVector(F.H, (x - T_FLY - 3) * v);
+    const L2 = v * 3, P2 = Ps.clone().addScaledVector(F.H, L2 * 0.5).addScaledVector(F.D, L2 * 0.5);
+    if (x < T_SAT + 3) return herm(Ps, F.H.clone().multiplyScalar(L2), P2, F.D.clone().multiplyScalar(L2), (x - T_SAT) / 3);
+    return P2.clone().addScaledVector(F.D, (x - T_SAT - 3) * v);
   }
   earthAU(t) { const r = this.pathPos(t).length(); return Math.pow(r / 6, 1 / 0.6); }
 
@@ -323,7 +342,7 @@ export class SolarWorld {
   range(t) { return t < 45.2 ? 1.5e9 + (t - 36) * 2.5e8 : 2.2e6; }
 
   update(t, dt, clock) {
-    const years = (t - 36) * (15 / 16); // 时间压缩：约 1 年 / 秒
+    const years = yrs(t); // 与 HUD 年份同一条曲线
     const yr = Math.max(0, years);
     this.sunMat.uniforms.uTime.value = clock; this.loopMat.uniforms.uTime.value = clock;
     this.sun.rotation.y = clock * 0.02;

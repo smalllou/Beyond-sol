@@ -176,9 +176,9 @@ export class GalaxyWorld {
     this.local = new THREE.Points(lg, this.localMat); this.local.frustumCulled = false; S.add(this.local);
     // 太阳、比邻星、航线
     this.sun = glowSprite(new THREE.Color(2.4, 2.0, 1.4), 1.2, { power: 3, opacity: 1 }); S.add(this.sun);
-    // 比邻星：星表里的真实方向，距离按剧本统一为 4.3 光年（星表值 4.24）
+    // 比邻星：星表里的真实方向，距离按剧本统一为 4.2 光年（星表值 4.24）
     const pk = proxK * 5;
-    this.acenPos = this.galToWorld(NEAR_STARS[pk], NEAR_STARS[pk + 1], NEAR_STARS[pk + 2]).normalize().multiplyScalar(4.3);
+    this.acenPos = this.galToWorld(NEAR_STARS[pk], NEAR_STARS[pk + 1], NEAR_STARS[pk + 2]).normalize().multiplyScalar(4.2);
     this.acen = glowSprite(new THREE.Color(2.4, 1.3, 0.7), 1.0, { power: 3, opacity: 1 }); this.acen.position.copy(this.acenPos); S.add(this.acen);
     this.route = new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(0, 0, 0), this.acenPos]), new THREE.LineBasicMaterial({ color: new THREE.Color(1.6, 1.8, 2.4), transparent: true, opacity: 0.9 }));
     S.add(this.route);

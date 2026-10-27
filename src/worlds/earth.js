@@ -221,8 +221,6 @@ export class EarthWorld {
     this.fleetPlumes = new Plumes(4, { core: 0xe8f4ff, edge: 0x3d7bff, alt: 0x7d6bff, gain: 1.4, grow: 0.5 });
     this.fleetPlumes.add(V(-0.44, 0, 0), V(-1, 0, 0), 1.0, 0.05, -1, 0.3);
     this.fleetPlumes.commit(); this.fleet.add(this.fleetPlumes.mesh);
-    // 深空补光：星际段阳光只剩十分之一，给领航员一盏冷色补光（只照亮近处的站体），否则在黑色地球前读不出轮廓
-    this.fleetFill = new THREE.PointLight(0xbfd4ff, 0, 2.5, 1.2); this.fleetFill.position.set(0.3, 0.6, 1.2); this.fleet.add(this.fleetFill);
     // 局部 +X 是船头：对准前进方向，局部 +Y 尽量保持朝上
     this.fleet.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(FWD, UPF, FWD.clone().cross(UPF)));
   }
@@ -419,8 +417,8 @@ export class EarthWorld {
       [76.4, 86.0, (u) => orbit(V(lerp(2.5, 2.1, u), lerp(0.35, 0.18, u), lerp(1.9, 1.7, u)), lerp(4.6, 4.3, u), 48)],
       // 12 日球层顶
       [86.0, 96.4, (u) => orbit(V(lerp(3.2, 2.4, u), lerp(0.6, 0.3, u), lerp(-2.0, -1.2, u)), lerp(5.0, 4.6, u), 44)],
-      // 13 冰封地球与舰队：侧面机位，地球在后、舰队在前方开路
-      [96.0, 106.6, (u) => ({ pos: SIDE.clone().multiplyScalar(lerp(-6.4, -5.8, u)).addScaledVector(UPF, lerp(1.6, 1.2, u)).addScaledVector(FWD, lerp(1.2, 1.8, u)), look: FWD.clone().multiplyScalar(1.5).addScaledVector(UPF, 0.3), fov: 44, up: UPF })],
+      // 13 独自航行的冰封地球（领航员号已留在木星）：后上方机位，地球与弓形激波在画面一侧，前方是空旷的黑暗与遥远的比邻星
+      [96.0, 106.6, (u) => ({ pos: SIDE.clone().multiplyScalar(lerp(-3.2, -2.85, u)).addScaledVector(UPF, lerp(1.7, 1.5, u)).addScaledVector(FWD, lerp(-4.6, -4.1, u)), look: FWD.clone().multiplyScalar(lerp(1.2, 1.5, u)).addScaledVector(UPF, -0.2), fov: 42, up: UPF })],
       // 14 赤道发动机项链 + 弓形激波
       [106.6, 116.0, (u) => orbit(V(lerp(2.9, 2.5, u), lerp(0.5, 0.25, u), lerp(2.2, 2.0, u)), lerp(4.7, 4.4, u), 46)],
       // 15 前方：弓形激波与渐亮的比邻星（地球边缘在画面下方）
@@ -574,10 +572,11 @@ export class EarthWorld {
     // 电梯：片头即已建成（电影里出发前几十年就建好了），全程保留，深空段结霜变暗
     const L = this.elevL;
     // 镜头05（30–36.4 秒）领航员特写里，几万公里外的方舟号和缆索只剩几个像素，透视又压在主脊上像站上部件，这一镜隐去
-    this.elev.visible = !(t >= 31.6 && t < 36.4);   // 一镜到底：相机飞抵领航员后（方舟号已只剩几个像素）才隐去
+    // 一镜到底：相机飞抵领航员后（方舟号已只剩几个像素）隐去；第二章起（2058 年后）不再出现：电梯与方舟号属于 2044 档案画面
+    this.elev.visible = t < 31.6;
     this.cable.scale.y = 1;
     this.relays.forEach((w) => { w.visible = true; });
-    this.station.visible = true; this.station.scale.setScalar(0.32);
+    this.station.visible = t < 36; this.station.scale.setScalar(0.32);   // 方舟号：第二章起隐藏
     const sh = this.shot(t);
     const deep = ch >= 3 && ch <= 5;
     const climb = sh && sh.climb !== undefined ? sh.climb : deep ? 2.2 : 2.2 + Math.sin(clock * 0.05) * 1.5;
@@ -589,12 +588,9 @@ export class EarthWorld {
     this.cableGlow.opacity = 0.55 * (1 - 0.7 * Math.max(0, freeze - 0.5) * 2);
     if (!deep) this.station.userData.rings.forEach((r, i) => { r.rotation.y = (i % 2 ? -1 : 1) * clock * 0.25; });
 
-    // 舰队：在地球前进方向上开路，船头朝前；编队向后拉开约 4 个地球半径，所以整体偏到一侧，不压在地球上
-    const fleetOn = (t >= 30 && t < 37) || (t >= 96 && t < 126);
-    this.fleet.visible = fleetOn;
-    if (t < 96) this.fleet.position.copy(FWD).multiplyScalar(4.6 + (t % 40) * 0.01).addScaledVector(SIDE, 1.7).addScaledVector(UPF, 0.4);
-    else this.fleet.position.copy(FWD).multiplyScalar(3.6).addScaledVector(SIDE, -1.9).addScaledVector(UPF, 0.75);   // 仍在地球航向正前方，只偏向镜头一侧，不压在地球轮廓上
-    this.fleetFill.intensity = t >= 96 && t < 126 ? 2.2 : 0;
+    // 领航员号：只在第一章（30–37 s）伴航；2075 年木星危机中撞向木星，此后不再出现
+    this.fleet.visible = t >= 30 && t < 37;
+    this.fleet.position.copy(FWD).multiplyScalar(4.6 + (t % 40) * 0.01).addScaledVector(SIDE, 1.7).addScaledVector(UPF, 0.4);
     this.fleetPlumes.uniforms.uTime.value = clock; this.fleetPlumes.uniforms.uIgnite.value = 1e5;
     this.flagship.userData.spin.forEach(([o, w]) => { o.rotation.x = clock * w; });
 
