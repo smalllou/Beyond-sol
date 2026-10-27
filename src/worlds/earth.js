@@ -427,11 +427,24 @@ export class EarthWorld {
       // 08 木星引力弹射：跟拍地球掠过木星（近木点约 1.5 R_J），相机在弯道外侧；57 s 后转到地球前方回望远去的木星
       [52.0, 60.0, (u) => {
         const t = 52 + 8 * u, v = FLY.vel(t), out = v.clone().cross(FLY.nrm).normalize(), J = FLY.jup(t);
-        const along = keyed([[52, -14], [55, -15], [56, -15], [57.2, 4], [58, 7], [60, 10]], t);
-        const off = keyed([[52, 2], [55, 2.5], [56, 4], [57.2, 7], [58, 6], [60, 4]], t);
-        const up = keyed([[52, 5], [55.5, 8], [57.2, 4], [58, 2.5], [60, 1.2]], t);
+        // 55.8–58.4 s 由弯道外侧绕到地球前方（整段 smoothstep 缓入缓出，绕行半径加大，木星始终留在画面里）
+        const along = keyed([[52, -14], [55, -15], [55.8, -16], [58.4, 8], [60, 10]], t);
+        const off = keyed([[52, 2], [55, 2.5], [55.8, 4], [57.1, 16], [58.4, 8], [60, 4]], t);
+        const up = keyed([[52, 5], [55.5, 8], [57.1, 7], [58.4, 3.5], [60, 1.2]], t);
+        const fov = keyed([[52, 50], [55.5, 60], [57.1, 64], [60, 52]], t);
         const pos = v.clone().multiplyScalar(along).addScaledVector(out, off).addScaledVector(FLY.nrm, up);
-        return { pos, look: J.multiplyScalar(keyed([[52, 0.15], [55.5, 0.45], [57.2, 0.25], [58.5, 0.15], [60, 0.12]], t)).addScaledVector(FLY.nrm, keyed([[56, 0], [57.5, -1.6], [60, -2.0]], t)), fov: keyed([[52, 50], [55.5, 60], [60, 52]], t), up: FLY.nrm };
+        // 视线：从"看地球"朝"看木星"偏转 Th·k，但保证地球（含光柱余量 1.6 r）留在两侧仪表之间的安全区（960 宽时 275–685 px）
+        const dE = pos.clone().negate().normalize(), dJ = J.clone().sub(pos).normalize(), ax = dE.clone().cross(dJ);
+        const Th = Math.acos(Math.min(1, dE.dot(dJ))), rE = Math.asin(1 / pos.length()), ty = Math.tan(fov * Math.PI / 360), tx = ty * 16 / 9;
+        const fit = (al) => {
+          const d = ax.lengthSq() > 1e-12 ? dE.clone().applyAxisAngle(ax.clone().normalize(), al) : dE.clone();
+          const R = d.clone().cross(FLY.nrm).normalize(), U = R.clone().cross(d), z = dE.dot(d);
+          const x = 480 + dE.dot(R) / z / tx * 480, y = 270 - dE.dot(U) / z / ty * 270, r = Math.tan(rE) / ty * 270;
+          return { d, ok: x - 1.6 * r > 275 && x + 1.6 * r < 685 && y - 1.3 * r > 30 && y + 1.3 * r < 505 };
+        };
+        let lo = 0, hi = Th * keyed([[52, 0.45], [55.5, 0.6], [57.1, 0.8], [58.4, 0.6], [60, 0.45]], t), best = fit(hi);
+        if (!best.ok) { for (let i = 0; i < 16; i++) { const m = (lo + hi) / 2; if (fit(m).ok) lo = m; else hi = m; } best = fit(lo); }
+        return { pos, look: pos.clone().add(best.d), fov, up: FLY.nrm };
       }],
       // 09 土星：地球在画面右侧，土星在左后方远处（不重叠）
       [60.0, 66.4, (u) => {

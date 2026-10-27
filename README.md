@@ -99,7 +99,7 @@ basisu -uastc -uastc_level 2 -mipmap -y_flip -linear -ktx2 earth_clouds.jpg
 
 - 行星、太阳、地球昼/夜/云/法线/镜面贴图：Solar System Scope（solarsystemscope.com/textures），CC BY 4.0，经由 Wikimedia Commons 获取
 - 银河全景：ESO / S. Brunier，“The Milky Way panorama”，CC BY 4.0
-- 冥王星：轨道根数 a 39.48 AU、e 0.2488、i 17.16°、Ω 110.3°、ω 113.8°（JPL 近似值）；星体为小球体，暂用水星贴图（Solar System Scope，CC BY 4.0），未使用 New Horizons 全球图
+- 冥王星：轨道根数 a 39.48 AU、e 0.2488、i 17.16°、Ω 110.3°、ω 113.8°（JPL 近似值）；贴图 `pluto.jpg` 为新视野号全球彩色拼接图（缩至 2048×1024），NASA/JHUAPL/SwRI，public domain，来源 https://commons.wikimedia.org/wiki/File:Pluto_color_mapmosaic.jpg（原图 https://upload.wikimedia.org/wikipedia/commons/a/ad/Pluto_color_mapmosaic.jpg）
 - 近邻恒星：HYG 星表 v4.4（David Nash / astronexus，codeberg.org/astronexus/hyg），CC BY-SA 4.0；src/data/near-stars.js 为其衍生数据，同样以 CC BY-SA 4.0 提供
 - 字体：Orbitron、Rajdhani、JetBrains Mono、Noto Sans SC（均为 SIL Open Font License 1.1）
 - 舰船、空间站、发动机、银河系全部为程序化生成；配乐为程序实时合成
