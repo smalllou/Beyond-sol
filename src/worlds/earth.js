@@ -39,6 +39,26 @@ function landMask(img) {
 }
 
 const RING_EQ = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+// 木星引力弹射（以地球为原点的相对坐标）：地球相对木星走一条双曲线，近木点 1.5 R_J = 16.8 地球半径（木星半径 11.2，
+// 云顶以上约 5.6，约等于洛希极限 1.1×10⁵ km），偏转约 70°，55.6 s 过近木点。太阳方向同第二章（约 5 AU 外）。
+const FLY = (() => {
+  const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+  const sunD = V3(0.55, 0.22, 0.8).normalize();
+  const nrm = V3(0.3, 1, 0.3).normalize();                         // 飞掠轨道面法向
+  // 近木点方向（木星 → 地球）：取轨道面内与太阳方向夹角约 6°，使近木点时看到木星日面、回望时仍有一半以上被照亮
+  const sp = sunD.clone().addScaledVector(nrm, -sunD.dot(nrm)).normalize(), side = nrm.clone().cross(sp).normalize();
+  const p = sp.clone().multiplyScalar(Math.cos(0.1)).addScaledVector(side, Math.sin(0.1));
+  const q = nrm.clone().cross(p).normalize();                       // 近木点处的运动方向
+  const e = 1.743, rp = 16.8, a = rp / (e - 1), TP = 55.6, K = 0.92;
+  const rel = (t) => {   // 地球相对木星的位置（开普勒方程，双曲线偏近点角 H）
+    const M = K * (t - TP); let H = Math.asinh(M / e);
+    for (let i = 0; i < 20; i++) H -= (e * Math.sinh(H) - H - M) / (e * Math.cosh(H) - 1);
+    return p.clone().multiplyScalar(a * (e - Math.cosh(H))).addScaledVector(q, a * Math.sqrt(e * e - 1) * Math.sinh(H));
+  };
+  const jup = (t) => rel(t).negate();                               // 木星相对地球的位置
+  const vel = (t) => rel(t + 0.02).sub(rel(t - 0.02)).normalize();  // 地球相对木星的运动方向
+  return { rel, jup, vel, nrm };
+})();
 export class EarthWorld {
   constructor(tex) {
     this.scene = new THREE.Scene();
@@ -231,6 +251,10 @@ export class EarthWorld {
     this.saturn = mk(tex.saturn, 9.4, { rim: new THREE.Color(0.9, 0.8, 0.6), rimGain: 0.3 });
     this.neptune = mk(tex.neptune, 3.9, { rim: new THREE.Color(0.4, 0.6, 1.2), rimGain: 0.8 });
     for (const [m, g] of [[this.jupiter, 0.35], [this.saturn, 0.3], [this.neptune, 0.8]]) m.userData.rimGain = g;
+    // 飞掠航迹：地球相对木星的双曲线（几何以木星为原点，每帧放到木星当前位置）
+    const fp = []; for (let i = 0; i <= 240; i++) fp.push(FLY.rel(51.6 + i / 240 * 8.8));
+    this.flyArc = new THREE.Line(new THREE.BufferGeometry().setFromPoints(fp), new THREE.LineBasicMaterial({ color: 0x9fc2ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    this.flyArc.visible = false; this.scene.add(this.flyArc);
     // 土星环
     const rg = new THREE.RingGeometry(1.24, 2.27, 256, 1);
     const pos = rg.attributes.position, uv = rg.attributes.uv;
@@ -366,10 +390,6 @@ export class EarthWorld {
       const d = star.clone().sub(pos).length();
       return { pos, look: star.addScaledVector(acU, -d * Math.tan(pitch)), fov };
     };
-    // 木星飞掠：相机距地球约 9.4（地球占画高约 1/4），木星在地球正后方约 23.4 单位 ≈ 1.5×10⁵ km
-    const jupN = V(0.62, 0.14, 0.77).normalize();
-    const jupF = jupN.clone().negate(), jupR = jupF.clone().cross(V(0, 1, 0)).normalize(), jupU = jupR.clone().cross(jupF);
-    this.jupFrame = { n: jupN, r: jupR, u: jupU };
     if (t < 36.4) return this._oneTake(t, hero, anchor, side);
     const S = [
       // 01 点火全景
@@ -404,13 +424,21 @@ export class EarthWorld {
         const c = Fl.localToWorld(V(lerp(1.05, 0.7, u), lerp(0.34, 0.26, u), lerp(1.2, 1.25, u)));
         return { pos: c, look: Fl.localToWorld(V(0.12, -0.04, -0.05)), fov: 44, up: UPF };
       }],
-      // 08 木星引力弹射
+      // 08 木星引力弹射：跟拍地球掠过木星（近木点约 1.5 R_J），相机在弯道外侧；57 s 后转到地球前方回望远去的木星
       [52.0, 60.0, (u) => {
-        const n = jupN.clone().addScaledVector(jupR, lerp(-0.03, 0.03, u)).normalize();
-        return { pos: n.multiplyScalar(lerp(9.7, 9.1, u)), look: jupR.clone().multiplyScalar(0.7).addScaledVector(jupU, 1.2), fov: 46 };
+        const t = 52 + 8 * u, v = FLY.vel(t), out = v.clone().cross(FLY.nrm).normalize(), J = FLY.jup(t);
+        const along = keyed([[52, -14], [55, -15], [56, -15], [57.2, 4], [58, 7], [60, 10]], t);
+        const off = keyed([[52, 2], [55, 2.5], [56, 4], [57.2, 7], [58, 6], [60, 4]], t);
+        const up = keyed([[52, 5], [55.5, 8], [57.2, 4], [58, 2.5], [60, 1.2]], t);
+        const pos = v.clone().multiplyScalar(along).addScaledVector(out, off).addScaledVector(FLY.nrm, up);
+        return { pos, look: J.multiplyScalar(keyed([[52, 0.15], [55.5, 0.45], [57.2, 0.25], [58.5, 0.15], [60, 0.12]], t)).addScaledVector(FLY.nrm, keyed([[56, 0], [57.5, -1.6], [60, -2.0]], t)), fov: keyed([[52, 50], [55.5, 60], [60, 52]], t), up: FLY.nrm };
       }],
-      // 09 土星环面穿越
-      [60.0, 66.4, (u) => ({ pos: V(lerp(3.6, 3.0, u), lerp(0.7, 0.25, u), lerp(2.2, 2.8, u)), look: V(-2.0, -0.6, -2.2), fov: 48 })],
+      // 09 土星：地球在画面右侧，土星在左后方远处（不重叠）
+      [60.0, 66.4, (u) => {
+        const pos = V(lerp(3.6, 3.0, u), lerp(0.7, 0.25, u), lerp(2.2, 2.8, u)), look = V(-2.0, -0.6, -2.2);
+        const f = look.clone().sub(pos).normalize(), r = f.clone().cross(V(0, 1, 0)).normalize();
+        return { pos, look: look.addScaledVector(r, -3.0).add(V(0, 0.5, 0)), fov: 48 };
+      }],
       // 10 海王星
       [66.0, 76.4, (u) => orbit(V(lerp(3.0, 3.6, u), lerp(0.5, 0.8, u), lerp(2.6, 2.2, u)), lerp(4.9, 4.6, u), 44, V(-0.35, 0.1, -0.25))],
       // 11 柯伊伯带
@@ -558,7 +586,8 @@ export class EarthWorld {
     // 飞掠木星：5,000 余座停机（52 s）；60 s 飞离后重新点火；62–65.5 s 叛乱处决期间全部关闭；滑行与掉头期间关闭
     const on = engOn;
     this.engineOn = on;
-    P.uniforms.uGain.value = gain * on;
+    P.uniforms.uGain.value = gain * (t < 36 ? on : Math.min(1, on * 20));   // 第一章后：亮度不变，按开机比例熄灭光柱
+    P.uniforms.uKeep.value = t < 36 ? 1 : on;
     P.uniforms.uLen.value = ch === 1 ? 1.0 : ch >= 4 ? 0.85 : 0.92;
     // 赤道转向阵列：第一章刹车（36 秒自转停止前收尾）、第六章 152 秒重新起转
     const SP = this.steerPlumes, steerOn = ch === 1 ? 1 - sstep(33.5, 36, t) : ch === 6 ? sstep(152, 154.5, t) : 0;
@@ -596,21 +625,24 @@ export class EarthWorld {
     this.flagship.userData.spin.forEach(([o, w]) => { o.rotation.x = clock * w; });
 
     // 行星背景：只在各自镜头内出现，接近时由暗变亮、略微变大，离开时缩小淡出（镜头切换处另有短暂溶暗）
-    const jf = sstep(52, 53.4, t) * (1 - sstep(58.8, 60, t));
+    const jf = sstep(52, 52.5, t) * (1 - sstep(59.4, 60, t));
     const sf = sstep(60, 61.4, t) * (1 - sstep(65.2, 66.4, t));
     const nf = sstep(66.4, 68.2, t) * (1 - sstep(75.0, 76.4, t));
     this.jupiter.visible = t >= 52 && t < 60 && jf > 0.001;
     if (this.jupiter.visible) {
       // 地球后方约 1.5×10⁵ km（23.4 地球半径，洛希极限约 1.1×10⁵ km），木星半径 11.2 ≈ 7.1×10⁴ km
-      const u = (t - 52) / 8, J = this.jupFrame || (this.shot(55), this.jupFrame);
-      this.jupiter.position.copy(J.n).multiplyScalar(lerp(-26, -22.3, sstep(52, 56, t)) - 3 * sstep(57, 60, t)).addScaledVector(J.r, lerp(6.0, 5.0, u)).addScaledVector(J.u, lerp(4.8, 4.2, u));
-      this.jupiter.rotation.y = clock * 0.03;
+      this.jupiter.position.copy(FLY.jup(t));
+      this.jupiter.rotation.set(0.05, clock * 0.12, 0);   // 木星自转（约 10 小时一周，示意加快）
     }
+    this.flyArc.visible = this.jupiter.visible;
+    if (this.flyArc.visible) { this.flyArc.position.copy(this.jupiter.position); this.flyArc.material.opacity = 0.32 * jf; }
     this.saturn.visible = this.rings.visible = t >= 60 && t < 66.4 && sf > 0.001;
     if (this.saturn.visible) {
-      const u = (t - 60) / 6.4;
-      this.saturn.position.set(lerp(-34, -24, sstep(60, 63, t)) - 3 * sstep(64, 66.4, t), lerp(-5.5, -3, u), lerp(-40, -32, sstep(60, 63, t)) - 3 * sstep(64, 66.4, t));
+      // 相对相机放置：左上方远处（约 130 地球半径，画面横向约 40% 处，避开左侧仪表），与地球在画面上分开，光环近侧弧可见
+      const u = (t - 60) / 6.4, cf = sh.look.clone().sub(sh.pos).normalize(), cr = cf.clone().cross(V(0, 1, 0)).normalize(), cu = cr.clone().cross(cf);
+      this.saturn.position.copy(sh.pos).addScaledVector(cf, lerp(132, 124, u)).addScaledVector(cr, lerp(-21, -19.5, u)).addScaledVector(cu, lerp(20, 18.5, u));
       this.saturn.rotation.set(0.42, 0, 0.12);
+      { const m = this.saturn.material.uniforms; m.uRingShadow.value = 9.4; m.uRingN.value.set(0, 1, 0).applyQuaternion(this.saturn.quaternion); m.uCenter.value.copy(this.saturn.position); }   // 环影
       this.rings.position.copy(this.saturn.position); this.rings.quaternion.copy(this.saturn.quaternion).multiply(RING_EQ); // 光环严格位于土星赤道面
       this.ringMat.uniforms.uC.value.copy(this.saturn.position); this.ringMat.uniforms.uSun.value.copy(sun); this.ringMat.uniforms.uSunInt.value = sunInt * 1.6; this.ringMat.uniforms.uOp.value = sf;
     }

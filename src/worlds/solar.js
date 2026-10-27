@@ -96,6 +96,13 @@ export class SolarWorld {
     this.engines = this._engines(0.34); this.earth.add(this.engines);
     this.earthGlow = glowSprite(new THREE.Color(0.6, 0.75, 1.8), 2.4, { power: 3, opacity: 0.8 }); S.add(this.earthGlow);
     this.earthOrbit = this._orbit(artR(1), 0x9fc2ff, 0.5); S.add(this.earthOrbit);
+    // 冥王星：a 39.48 AU、e 0.2488、i 17.16°、Ω 110.3°、ω 113.8°（偏心且倾斜，用虚线、偏暗区分）；黄道坐标 X→x、Y→z、Z→y，
+    // 每个点按艺术化尺度 artR(r) 缩放日心距（方向不变）；位置按 1989.7 年过近日点、周期 247.9 年推算
+    this.plutoEl = { a: 39.48, e: 0.2488, i: 17.16 * Math.PI / 180, O: 110.3 * Math.PI / 180, w: 113.8 * Math.PI / 180, tp: 1989.7, per: 247.9 };
+    const pp = []; for (let k = 0; k <= 512; k++) pp.push(this._plutoPos(k / 512 * Math.PI * 2));
+    this.plutoOrbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pp), new THREE.LineDashedMaterial({ color: 0xd2a77c, transparent: true, opacity: 0.75, dashSize: 1.4, gapSize: 0.9, depthWrite: false }));
+    this.plutoOrbit.computeLineDistances(); S.add(this.plutoOrbit);
+    this.pluto = new THREE.Mesh(new THREE.SphereGeometry(0.16, 32, 16), planetMaterial(tex.mercury, { rimGain: 0.2 })); S.add(this.pluto);   // 无可靠下载源，用水星贴图染成冥王星的灰褐色调
     this._buildPath();
     // 木星引力弹弓：初相按 52 s（同一条年份曲线）地球最后一个远日点的方位反推，木星恰在远日点前方外侧擦身而过
     const jup = this.planets.find((p) => p.key === 'jupiter');
@@ -153,6 +160,12 @@ export class SolarWorld {
     this.state = {};
   }
 
+  // 冥王星轨道上真近点角 nu 处的场景坐标
+  _plutoPos(nu) {
+    const { a, e, i, O, w } = this.plutoEl, r = a * (1 - e * e) / (1 + e * Math.cos(nu)), u = nu + w;
+    const X = Math.cos(O) * Math.cos(u) - Math.sin(O) * Math.sin(u) * Math.cos(i), Y = Math.sin(O) * Math.cos(u) + Math.cos(O) * Math.sin(u) * Math.cos(i), Z = Math.sin(u) * Math.sin(i);
+    return V(X, Z, Y).multiplyScalar(artR(r));
+  }
   _orbit(R, color, op) {
     const pts = []; for (let i = 0; i <= 256; i++) { const a = i / 256 * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * R, 0, Math.sin(a) * R)); }
     return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity: op, depthWrite: false }));
@@ -353,6 +366,12 @@ export class SolarWorld {
     // CME
     const cmeT = t - 47.2;
     this.cme.material.uniforms.uT.value = cmeT > 0 ? cmeT * 0.35 : 0;
+    { // 冥王星位置（开普勒方程）
+      const P = this.plutoEl, M = ((Y0 + yr - P.tp) / P.per) * Math.PI * 2; let E = M;
+      for (let k = 0; k < 12; k++) E -= (E - P.e * Math.sin(E) - M) / (1 - P.e * Math.cos(E));
+      const nu = 2 * Math.atan2(Math.sqrt(1 + P.e) * Math.sin(E / 2), Math.sqrt(1 - P.e) * Math.cos(E / 2));
+      this.pluto.position.copy(this._plutoPos(nu)); this.pluto.material.uniforms.uSun.value.copy(this.pluto.position).negate().normalize();
+    }
     for (const p of this.planets) {
       const a = p.ph + yr / p.per * Math.PI * 2;
       p.mesh.position.set(Math.cos(a) * p.R, 0, Math.sin(a) * p.R);

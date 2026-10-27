@@ -182,6 +182,12 @@ export function planetMaterial(map, { rim = new THREE.Color(0.5, 0.6, 0.9), rimG
         float l = max(dot(N, uSun), 0.0);
         float term = smoothstep(-0.05, 0.3, dot(N, uSun));
         vec3 col = c * (l * 1.1 * uSunInt + 0.012) + c * uEmi;
+        if (uRingShadow > 0.0) { // 土星环投在星体上的影子：uRingShadow = 星体半径（世界单位），环面 1.24–2.27 R
+          float dn = dot(uSun, uRingN);
+          if (abs(dn) > 1e-3) { float sd = dot(uCenter - vW, uRingN) / dn;
+            if (sd > 0.0) { float r = length(vW + uSun * sd - uCenter) / uRingShadow;
+              col *= 1.0 - 0.55 * smoothstep(1.24, 1.34, r) * (1.0 - smoothstep(2.12, 2.27, r)); } }
+        }
         float fr = pow(1.0 - max(dot(N, V), 0.0), 2.5);
         col += uRim * fr * uRimGain * (0.1 + term) * uSunInt;
         gl_FragColor = vec4(col, 1.0);

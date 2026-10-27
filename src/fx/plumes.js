@@ -13,6 +13,7 @@ uniform float uTime;
 uniform float uLen;
 uniform float uWid;
 uniform float uGrow;
+uniform float uKeep;   // 开机比例：种子 aShape.w > uKeep 的光柱熄灭（例如木星危机 5,000 余座停机）
 varying vec2 vUv;
 varying float vSeed;
 varying float vHue;
@@ -26,7 +27,8 @@ void main(){
   vHue = aHue;
   float y = position.y;
   float flick = 1.0 + 0.05 * sin(uTime * (9.0 + aShape.w * 7.0) + aShape.w * 40.0);
-  float L = aShape.x * uLen * grow * flick;
+  float keep = step(aShape.w, uKeep);
+  float L = aShape.x * uLen * grow * flick * keep;
   vec3 axis = normalize(aDir);
   vec3 wp = (modelMatrix * vec4(aPos + axis * y * L, 1.0)).xyz;
   vec3 wAxis = normalize(mat3(modelMatrix) * axis);
@@ -35,7 +37,7 @@ void main(){
   float sl = length(side);
   side = sl > 1e-4 ? side / sl : vec3(1.0, 0.0, 0.0);
   vFacing = sl;
-  float w = aShape.y * uWid * (0.55 + 0.9 * y) * (0.25 + 0.75 * grow);
+  float w = aShape.y * uWid * (0.55 + 0.9 * y) * (0.25 + 0.75 * grow) * keep;
   wp += side * position.x * w;
   vUv = vec2(position.x, y);
   vNear = smoothstep(0.015, 0.12, distance(cameraPosition, wp));
@@ -98,7 +100,7 @@ export class Plumes {
     g.instanceCount = 0;
     this.geometry = g;
     this.uniforms = {
-      uIgnite: { value: 1e6 }, uTime: { value: 0 }, uLen: { value: 1 }, uWid: { value: 1 }, uGain: { value: gain }, uGrow: { value: grow },
+      uIgnite: { value: 1e6 }, uTime: { value: 0 }, uLen: { value: 1 }, uWid: { value: 1 }, uGain: { value: gain }, uGrow: { value: grow }, uKeep: { value: 1 },
       uCore: { value: new THREE.Color(core) }, uEdge: { value: new THREE.Color(edge) }, uAlt: { value: new THREE.Color(alt) },
     };
     this.material = new THREE.ShaderMaterial({
