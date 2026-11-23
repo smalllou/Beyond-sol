@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { Plumes } from '../fx/plumes.js';
 import { earthMaterial, cloudMaterial, atmosphereMaterial, planetMaterial, glowSprite, NOISE } from '../fx/shaders.js';
+import { JupiterIgnition } from '../fx/ignition.js';
 import { skyDome, starPoints, streaks, shards, updateShards } from '../fx/space.js';
 import { materials, buildNavigator, buildArk, buildClimber, buildTruss } from '../fx/kit.js';
 import { keyed, TELE } from '../story.js';
@@ -250,6 +251,7 @@ export class EarthWorld {
     this.jupiter = mk(tex.jupiter, 11.2, { rim: new THREE.Color(0.8, 0.25, 0.12), rimGain: 0.35, grade: 1 });
     this.saturn = mk(tex.saturn, 9.4, { rim: new THREE.Color(0.9, 0.8, 0.6), rimGain: 0.3 });
     this.neptune = mk(tex.neptune, 3.9, { rim: new THREE.Color(0.4, 0.6, 1.2), rimGain: 0.8 });
+    this.ignition = new JupiterIgnition(this.scene, 11.2);   // 电影版：引爆木星
     for (const [m, g] of [[this.jupiter, 0.35], [this.saturn, 0.3], [this.neptune, 0.8]]) m.userData.rimGain = g;
     // 飞掠航迹：地球相对木星的双曲线（几何以木星为原点，每帧放到木星当前位置）
     const fp = []; for (let i = 0; i <= 240; i++) fp.push(FLY.rel(51.6 + i / 240 * 8.8));
@@ -431,7 +433,7 @@ export class EarthWorld {
         const along = keyed([[52, -14], [55, -15], [55.8, -16], [58.4, 8], [60, 10]], t);
         const off = keyed([[52, 2], [55, 2.5], [55.8, 4], [57.1, 16], [58.4, 8], [60, 4]], t);
         const up = keyed([[52, 5], [55.5, 8], [57.1, 7], [58.4, 3.5], [60, 1.2]], t);
-        const fov = keyed([[52, 50], [55.5, 60], [57.1, 64], [60, 52]], t);
+        const fov = keyed([[52, 50], [55.5, 60], [56.2, 72], [57.1, 70], [58.4, 62], [60, 52]], t);   // 点火时拉宽视野，把木星上的爆炸带进画面
         const pos = v.clone().multiplyScalar(along).addScaledVector(out, off).addScaledVector(FLY.nrm, up);
         // 视线：从"看地球"朝"看木星"偏转 Th·k，但保证地球（含光柱余量 1.6 r）留在两侧仪表之间的安全区（960 宽时 275–685 px）
         const dE = pos.clone().negate().normalize(), dJ = J.clone().sub(pos).normalize(), ax = dE.clone().cross(dJ);
@@ -442,8 +444,9 @@ export class EarthWorld {
           const x = 480 + dE.dot(R) / z / tx * 480, y = 270 - dE.dot(U) / z / ty * 270, r = Math.tan(rE) / ty * 270;
           return { d, ok: x - 1.6 * r > 275 && x + 1.6 * r < 685 && y - 1.3 * r > 30 && y + 1.3 * r < 505 };
         };
-        let lo = 0, hi = Th * keyed([[52, 0.45], [55.5, 0.6], [57.1, 0.8], [58.4, 0.6], [60, 0.45]], t), best = fit(hi);
+        let lo = 0, hi = Th * keyed([[52, 0.45], [55.5, 0.6], [56.3, 0.95], [57.1, 0.9], [58.4, 0.6], [60, 0.45]], t), best = fit(hi);
         if (!best.ok) { for (let i = 0; i < 16; i++) { const m = (lo + hi) / 2; if (fit(m).ok) lo = m; else hi = m; } best = fit(lo); }
+        pos.add(this.ignition.shake(t));   // 冲击波过境抖动
         return { pos, look: pos.clone().add(best.d), fov, up: FLY.nrm };
       }],
       // 09 土星：地球在画面右侧，土星在左后方远处（不重叠）
@@ -652,6 +655,10 @@ export class EarthWorld {
       // 地球后方约 1.5×10⁵ km（23.4 地球半径，洛希极限约 1.1×10⁵ km），木星半径 11.2 ≈ 7.1×10⁴ km
       this.jupiter.position.copy(FLY.jup(t));
       this.jupiter.rotation.set(0.05, clock * 0.12, 0);   // 木星自转（约 10 小时一周，示意加快）
+    }
+    {
+      const cv = document.querySelector('canvas'), pxH = (cv ? cv.height : 1080) / (2 * Math.tan(this.camera.fov * Math.PI / 360));
+      this.ignition.update(t, clock, this.jupiter.visible ? this.jupiter.position : FLY.jup(t), FLY.vel(t), FLY.nrm, jf, this.camera, pxH);
     }
     this.flyArc.visible = this.jupiter.visible;
     if (this.flyArc.visible) { this.flyArc.position.copy(this.jupiter.position); this.flyArc.material.opacity = 0.32 * jf; }
