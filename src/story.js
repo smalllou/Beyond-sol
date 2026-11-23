@@ -25,7 +25,7 @@ export const SUBS = [
   [41.0, 45.0,'一颗星球，驶出养育它的太阳系。', 'One planet, sailing out through the system that raised it.'],
   [45.4, 51.6,'在身后，太阳剧烈抽搐：耀斑、日珥与等离子风暴。', 'Behind us the Sun convulses — flares, loops and storms of plasma.'],
   [52.2, 55.4,'木星的引力弯折航线，把我们甩向更远的地方。', 'Jupiter bends our course and flings us outward.'],
-  [55.8, 59.4,'领航员号撞向木星，点燃了它。冲击波把我们推了出去。', 'The Navigator dives into Jupiter and sets it alight. The shockwave pushes us out.'],
+  [55.8, 59.4,'领航员号冲进喷流，点燃了木星。冲击波把我们推了出去。', 'The Navigator flies into the jet and sets Jupiter alight. The shockwave pushes us out.'],
   [64.8, 68.8,'身后，太阳氦闪。那是我们最后一次看见温暖的阳光。', 'Behind us, the Sun\u2019s helium flash — the last warm light we will see.'],
   [71.0, 76.0,'海王星。在这里，阳光弱了九百倍。', 'Neptune. Sunlight here is nine hundred times weaker.'],
   [76.6, 85.4,'柯伊伯带：冰、黑暗，和寂静。', 'The Kuiper belt: ice, darkness and silence.'],
