@@ -7,6 +7,23 @@
 
 > **本项目基于 [oxomkbk/earth-migration](https://github.com/oxomkbk/earth-migration)（地球迁移计划 · The Earth Migration Project，MIT 许可，Copyright (c) 2026 玛卡巴卡）修改而来。** 详见下方「上游项目与修改说明」。
 
+## 截图
+
+以下均为影片模式实时渲染的定格画面（`node tools/shots.mjs`，1600×900）。
+
+| | |
+| --- | --- |
+| ![00:08 · 点火：重型阵列的等离子光柱刺穿大气](docs/screenshots/01-ignition.jpg) | ![00:27 · 方舟号国际空间站（2044 年档案）](docs/screenshots/02-ark.jpg) |
+| 00:08 · 点火：重型阵列的等离子光柱刺穿大气 | 00:27 · 方舟号国际空间站（2044 年档案） |
+| ![00:33 · 领航员国际空间站](docs/screenshots/03-navigator.jpg) | ![00:47 · 衰老的太阳：耀斑、日珥与日冕物质抛射](docs/screenshots/04-sun.jpg) |
+| 00:33 · 领航员国际空间站 | 00:47 · 衰老的太阳：耀斑、日珥与日冕物质抛射 |
+| ![00:56 · 木星危机：领航员号点燃木星](docs/screenshots/05-jupiter.jpg) | ![01:02 · 土星与冰封的地球](docs/screenshots/06-saturn.jpg) |
+| 00:56 · 木星危机：领航员号点燃木星 | 01:02 · 土星与冰封的地球 |
+| ![01:32 · 越过日球层顶（约 120 AU）](docs/screenshots/07-heliopause.jpg) | ![01:52 · 星际航行：五百年的加速](docs/screenshots/08-interstellar.jpg) |
+| 01:32 · 越过日球层顶（约 120 AU） | 01:52 · 星际航行：五百年的加速 |
+| ![02:30 · 银河系：太阳在猎户臂](docs/screenshots/09-milky-way.jpg) | ![02:43 · 新太阳：比邻星，4.2 光年](docs/screenshots/10-new-sun.jpg) |
+| 02:30 · 银河系：太阳在猎户臂 | 02:43 · 新太阳：比邻星，4.2 光年 |
+
 ## 上游项目与修改说明
 
 ### 上游项目
@@ -106,6 +123,7 @@ src/fx/shaders.js       地球、云、大气、行星、光晕等着色器
 src/fx/space.js         银河天空、星点、速度流线、冰屑
 src/fx/ignition.js      木星危机：脐带气流、发动机喷流、点火、木星大气燃烧、火焰冲击波、镜头抖动
 src/fx/triplanar.js     三向投影 PBR（移植自上游 js/fx/triplanar.js）
+docs/screenshots/       README 截图
 public/assets/          贴图（JPG + 8K 的 KTX2）、basis 转码器、字体
 tools/                  开发工具（全部 Node）：截图 shots.mjs、冒烟测试 smoke.mjs、字体子集化 subset-font.mjs、星表生成 near-stars.mjs
 tools/fonts/            完整的 Noto Sans SC 可变字重源文件（只供裁剪，不进打包产物）
