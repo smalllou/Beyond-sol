@@ -17,7 +17,7 @@ export function chapterAt(t) {
 
 // 字幕：[开始, 结束, 中文, English]
 export const SUBS = [
-  [1.0, 8.6,  '太阳正在死去。一万两千台聚变发动机，把它的光变成我们离开的路。（原著口径；电影为一万座）', 'The Sun is dying. Twelve thousand fusion engines turn its light into our way out. (Novel\u2019s count; 10,000 in the films)'],
+  [1.0, 8.6,  '太阳正在死去。一万两千台聚变发动机，把它的光变成我们离开的路。', 'The Sun is dying. Twelve thousand fusion engines turn its light into our way out.'],
   [9.2, 14.8, '点火从背阳的半球开始，一台接一台，向整颗星球蔓延。（刹车时代始于 2044 年，此时自转已极慢）', 'Ignition starts on the night side and spreads, engine by engine, across the world. (The braking era began in 2044; by now the spin is very slow.)'],
   [15.4, 23.6,'太空电梯：从赤道到地球同步轨道，三万六千公里。（2044 年，太空电梯危机前）', 'The space elevator: 36,000 km from the equator to geostationary orbit. (2044, before the Space Elevator Crisis)'],
   [24.2, 29.6,'方舟号国际空间站：同步轨道上的港口，地球的出口。（2044 年）', 'The Ark International Space Station: a harbour in geostationary orbit, Earth\u2019s way out. (2044)'],

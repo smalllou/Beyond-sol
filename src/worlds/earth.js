@@ -546,7 +546,8 @@ export class EarthWorld {
     const cr = (a, b, c, d) => { const u2 = u * u, u3 = u2 * u; return 0.5 * ((2 * b) + (-a + c) * u + (2 * a - 5 * b + 4 * c - d) * u2 + (-a + 3 * b - 3 * c + d) * u3); };
     const crV = (f) => V(cr(P[0][f].x, P[1][f].x, P[2][f].x, P[3][f].x), cr(P[0][f].y, P[1][f].y, P[2][f].y, P[3][f].y), cr(P[0][f].z, P[1][f].z, P[2][f].z, P[3][f].z));
     const dir = crV('dir').normalize();
-    const r = Math.max(1.012, Math.exp(cr(P[0].lr, P[1].lr, P[2].lr, P[3].lr)));
+    // 样条不许把高度插到两端关键帧之下（否则 17.6→18.8 s 段会下冲进大气壳 r=1.045 内，背面辉光整屏闪一下）
+    const r = Math.max(1.012, Math.min(Math.exp(P[1].lr), Math.exp(P[2].lr)), Math.exp(cr(P[0].lr, P[1].lr, P[2].lr, P[3].lr)));
     const pos = dir.multiplyScalar(r);
     const fwd = crV('fwd').normalize();
     const up = crV('up').normalize();
@@ -684,8 +685,9 @@ export class EarthWorld {
     const kf = sstep(76.4, 78.2, t) * (1 - sstep(84.8, 86, t));
     this.shard.visible = t >= 76.4 && t < 86 && kf > 0.001;
     if (this.shard.visible) updateShards(this.shard, clock, heroW.clone().normalize().multiplyScalar(2.5), 2.2, kf);
-    this.bow.visible = (ch === 4 || (ch === 3 && t > 90)) && !(t >= 116 && t < 126.4);   // 镜头 15 机位下激波侧看成一道白带，隐藏
-    this.bowMat.uniforms.uTime.value = clock; this.bowMat.uniforms.uOp.value = ch === 4 ? 0.13 : sstep(90, 96, t) * 0.1;
+    // 弓形激波只在镜头 14（106.6–116 s）出现，前后淡入淡出，不再从 90 s 一直挂到 116 s
+    this.bow.visible = t >= 106.6 && t < 116;
+    this.bowMat.uniforms.uTime.value = clock; this.bowMat.uniforms.uOp.value = sstep(106.6, 108.6, t) * (1 - sstep(114.0, 116.0, t)) * 0.13;
     this.bow.position.copy(FWD).multiplyScalar(0.2); this.bow.lookAt(FWD.clone().multiplyScalar(5)); this.bow.rotateX(Math.PI / 2);   // 激波顶点在正前方约 1.5 个地球半径，开口朝后
     for (const a of [this.auroraN, this.auroraS]) { a.material.uniforms.uTime.value = clock; a.material.uniforms.uOp.value = ch === 4 ? 0.35 : ch === 3 ? 0.15 : 0; }
     this.helio.visible = t >= 86 && t < 96.4;

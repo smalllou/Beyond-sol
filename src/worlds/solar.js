@@ -99,11 +99,7 @@ export class SolarWorld {
     // 冥王星：a 39.48 AU、e 0.2488、i 17.16°、Ω 110.3°、ω 113.8°（偏心且倾斜，用虚线、偏暗区分）；黄道坐标 X→x、Y→z、Z→y，
     // 每个点按艺术化尺度 artR(r) 缩放日心距（方向不变）；位置按 1989.7 年过近日点、周期 247.9 年推算
     this.plutoEl = { a: 39.48, e: 0.2488, i: 17.16 * Math.PI / 180, O: 110.3 * Math.PI / 180, w: 113.8 * Math.PI / 180, tp: 1989.7, per: 247.9 };
-    const pp = []; for (let k = 0; k <= 512; k++) pp.push(this._plutoPos(k / 512 * Math.PI * 2));
-    this.plutoOrbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pp), new THREE.LineDashedMaterial({ color: 0xffc58a, transparent: true, opacity: 0.95, dashSize: 1.6, gapSize: 1.0, depthWrite: false, blending: THREE.AdditiveBlending }));
-    this.plutoOrbit.computeLineDistances(); S.add(this.plutoOrbit);
-    // WebGL 线宽固定 1 px：再叠两条略放大/缩小的同样虚线，形成约 2–3 px 的暖色虚线
-    for (const k of [1.004, 0.996]) { const l = new THREE.Line(this.plutoOrbit.geometry, this.plutoOrbit.material); l.scale.setScalar(k); S.add(l); }
+    // 冥王星轨道虚线已移除（39 s 附近画面上方那条暖色虚线）
     this.pluto = new THREE.Mesh(new THREE.SphereGeometry(0.2, 48, 24), planetMaterial(tex.pluto || tex.mercury, { rim: new THREE.Color(1.0, 0.8, 0.6), rimGain: 0.5 })); S.add(this.pluto);   // 新视野号全球彩色拼接图（NASA/JHUAPL/SwRI，public domain）
     this._buildPath();
     // 木星引力弹弓：初相按 52 s（同一条年份曲线）地球最后一个远日点的方位反推，木星恰在远日点前方外侧擦身而过
