@@ -51,14 +51,31 @@ const FLY = (() => {
   const p = sp.clone().multiplyScalar(Math.cos(0.1)).addScaledVector(side, Math.sin(0.1));
   const q = nrm.clone().cross(p).normalize();                       // 近木点处的运动方向
   const e = 1.743, rp = 16.8, a = rp / (e - 1), TP = 55.6, K = 0.92;
-  const rel = (t) => {   // 地球相对木星的位置（开普勒方程，双曲线偏近点角 H）
+  const hyp = (t) => {   // 双曲线航迹上的位置（开普勒方程，双曲线偏近点角 H）
     const M = K * (t - TP); let H = Math.asinh(M / e);
     for (let i = 0; i < 20; i++) H -= (e * Math.sinh(H) - H - M) / (e * Math.cosh(H) - 1);
     return p.clone().multiplyScalar(a * (e - Math.cosh(H))).addScaledVector(q, a * Math.sqrt(e * e - 1) * Math.sinh(H));
   };
+  // 电影版：木星引力突增 → 地球被加速拽向木星（50–53.3 s），发动机全力反推，
+  // 在洛希极限附近被"钉住"、几乎不再前进并缓慢下沉（54.5–57.1 s）；冲击波过境后被推开、重新加速甩出（57.1 s 起）。
+  // 航迹参数 τ 的推进速率 dτ/dt 分段平滑，积分得 τ(t)；位置 = 双曲线(τ) × 径向系数。
+  const ss = (a0, a1, x) => { const k = Math.min(1, Math.max(0, (x - a0) / (a1 - a0))); return k * k * (3 - 2 * k); };
+  const rate = (t) => {
+    if (t < 50) return 1;
+    if (t < 52.5) return 1 + 0.4 * ss(50, 52.5, t);
+    if (t < 53.3) return 1.4;
+    if (t < 57.1) return 1.4 - 1.35 * ss(53.3, 54.5, t);
+    return 0.05 + 2.35 * ss(57.1, 57.9, t);
+  };
+  const DT = 0.005, T0 = 50, TAB = [T0];
+  for (let t = T0; t < 70; t += DT) TAB.push(TAB[TAB.length - 1] + rate(t + DT / 2) * DT);
+  const tau = (t) => { if (t <= T0) return t; const f = (t - T0) / DT, i = Math.floor(f); if (i >= TAB.length - 1) return TAB[TAB.length - 1] + (t - T0 - (TAB.length - 1) * DT) * 2.4; return TAB[i] + (TAB[i + 1] - TAB[i]) * (f - i); };
+  const rad = (t) => 1 - 0.07 * ss(54.3, 57.1, t) + 0.12 * ss(57.1, 58.6, t);   // 下沉到洛希极限以内，再被推开
+  const rel = (t) => hyp(tau(t)).multiplyScalar(rad(t));             // 地球相对木星的位置
   const jup = (t) => rel(t).negate();                               // 木星相对地球的位置
-  const vel = (t) => rel(t + 0.02).sub(rel(t - 0.02)).normalize();  // 地球相对木星的运动方向
-  return { rel, jup, vel, nrm };
+  const vel = (t) => { const u = tau(t); return hyp(u + 0.02).sub(hyp(u - 0.02)).normalize(); };   // 航迹切向（与快慢无关，镜头取景稳定）
+  const speed = (t) => rate(t);                                     // 相对推进速率（1 = 原飞掠速度）
+  return { rel, jup, vel, nrm, speed };
 })();
 export class EarthWorld {
   constructor(tex) {
@@ -430,8 +447,8 @@ export class EarthWorld {
       [52.0, 60.0, (u) => {
         const t = 52 + 8 * u, v = FLY.vel(t), out = v.clone().cross(FLY.nrm).normalize(), J = FLY.jup(t);
         // 55.8–58.4 s 由弯道外侧绕到地球前方（整段 smoothstep 缓入缓出，绕行半径加大，木星始终留在画面里）
-        const along = keyed([[52, -14], [55, -15], [55.8, -16], [58.4, 8], [60, 10]], t);
-        const off = keyed([[52, 2], [55, 2.5], [55.8, 4], [57.1, 16], [58.4, 8], [60, 4]], t);
+        const along = keyed([[52, -14], [55, -16], [56.2, -20], [57.4, -18], [59, -6], [60, 2]], t);
+        const off = keyed([[52, 2], [55, 2], [57.1, 1], [58.6, 5], [60, 4]], t);
         const up = keyed([[52, 5], [55.5, 8], [57.1, 7], [58.4, 3.5], [60, 1.2]], t);
         const fov = keyed([[52, 50], [55.5, 60], [56.2, 72], [57.1, 70], [58.4, 62], [60, 52]], t);   // 点火时拉宽视野，把木星上的爆炸带进画面
         const pos = v.clone().multiplyScalar(along).addScaledVector(out, off).addScaledVector(FLY.nrm, up);

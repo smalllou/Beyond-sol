@@ -113,7 +113,7 @@ export class JupiterIgnition {
           float core = exp(-a * a / max(uAng * uAng * 0.25, 1e-4));
           vec3 col = vec3(3.0, 1.6, 0.55) * ring * (0.6 + 0.8 * n2)
                    + vec3(1.9, 0.55, 0.12) * inside * (0.25 + 0.75 * n * n2) * 0.9
-                   + vec3(2.4, 1.2, 0.4) * core * 0.45;
+                   + vec3(2.4, 1.2, 0.4) * core * 0.25;
           float limb = 0.35 + 0.65 * pow(clamp(dot(normalize(vN), vV), 0.0, 1.0), 0.4);
           gl_FragColor = vec4(col * uOp * limb, 1.0);
         }`,
@@ -139,7 +139,7 @@ export class JupiterIgnition {
           float n = fbm(vP * 3.0 + vec3(0.0, -uTime * 0.8, 0.0));
           vec3 hot = mix(vec3(2.6, 1.5, 0.6), vec3(2.2, 0.7, 0.15), smoothstep(0.0, 0.5, uAge));
           hot = mix(hot, vec3(1.1, 0.25, 0.06), smoothstep(0.5, 1.0, uAge));
-          float body = pow(f, 0.6) * (0.2 + 0.6 * n);
+          float body = pow(f, 0.6) * (0.12 + 0.45 * n);
           float rim = pow(1.0 - f, 3.0) * 0.6;
           gl_FragColor = vec4(hot * (body + rim) * uOp, 1.0);
         }`,
@@ -257,7 +257,7 @@ export class JupiterIgnition {
     C.uAng.value = 0.05 + 1.25 * (1 - Math.exp(-jAge / 1.6));
     C.uOp.value = jf * sstep(IGN.jup, IGN.jup + 0.3, t) * (1 - 0.4 * sstep(57.8, 59.8, t));
     this.ball.visible = jOn; this.ball.position.copy(imp);
-    this.ball.scale.setScalar(lerp(0.5, 7.5, 1 - Math.exp(-jAge / 1.0)));
+    this.ball.scale.setScalar(lerp(0.5, 4.5, 1 - Math.exp(-jAge / 1.0)));
     const Bm = this.ballMat.uniforms; Bm.uTime.value = clock; Bm.uAge.value = Math.min(1, jAge / 3.2);
     Bm.uOp.value = jf * sstep(IGN.jup, IGN.jup + 0.15, t) * (1 - 0.6 * sstep(58.0, 59.8, t));
 
