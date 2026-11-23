@@ -1,9 +1,43 @@
 # 再见，太阳系 · Beyond Sol
 
-一部向《流浪地球》致敬的 **three.js 实时交互宇宙旅程**。
+一部向《流浪地球》致敬的 **three.js 实时交互宇宙旅程**（非官方同人作品）。
 约 2 分 54 秒、六个章节：从一万两千台行星发动机点火，到穿越太阳系、日球层顶、星际空间，拉远到整个银河系，最后抵达比邻星（4.2 光年）的新太阳。
 
 画面全部实时渲染：GLSL 着色器 + 后期泛光，配乐由 Web Audio 实时合成，没有一帧预渲染视频。
+
+> **本项目基于 [oxomkbk/earth-migration](https://github.com/oxomkbk/earth-migration)（地球迁移计划 · The Earth Migration Project，MIT 许可，Copyright (c) 2026 玛卡巴卡）修改而来。** 详见下方「上游项目与修改说明」。
+
+## 上游项目与修改说明
+
+### 上游项目
+
+- 仓库：https://github.com/oxomkbk/earth-migration
+- 作者：玛卡巴卡（oxomkbk）
+- 许可：MIT License，Copyright (c) 2026 玛卡巴卡
+- 简介：基于 three.js r160 的电影级交互式 WebGL 体验，分两部：第一部（`index.html`，行星发动机、赤道转向阵列、太空电梯与一部约 62 秒的影片）和第二部 *Beyond the Wandering Earth*（`beyond.html`，从行星发动机一路拉远到银河系的约 2 分 54 秒影片 + 自由探索）。
+
+本项目以上游第二部的整体构思为基础：六章影片 + 自由探索的结构、地球 / 太阳系 / 银河三层尺度的世界划分、推进与导航仪表盘、MOSS 链路延迟等遥测、事件日志、底部章节条与「影片中滚轮穿越时间」的交互、硬表面拼装建模（kitbash）和生成式配乐的思路。
+
+### 直接沿用或移植的部分
+
+| 本项目文件 | 来源 | 说明 |
+| --- | --- | --- |
+| `src/fx/triplanar.js` | 上游 `js/fx/triplanar.js` | 无 UV 几何体的三向投影 PBR 着色，移植后适配本项目 |
+| 方舟号站体（`src/worlds/earth.js` 内） | 上游同步轨道站 | 站体造型参考上游设计 |
+| `public/assets/tex/pbr/` | Poly Haven（上游同样使用） | metal_plate_02、painted_metal_shutter、blue_metal_plate，CC0 |
+
+### 主要改动
+
+- **工程化**：改为 Vite 工程（`npm run dev / build`），three.js 升级到 0.170 并通过 npm 引入；源码重组为 `src/main.js`、`src/story.js`、`src/hud.js`、`src/worlds/*`、`src/fx/*`。
+- **剧本与时间线**：按电影时间线（2044 太空电梯危机、2058 全球点火、2075 木星引力危机、2078 太阳氦闪）与原著航程结构（加速 500 年 · 滑行 1300 年 · 减速与泊入）重写章节、字幕和事件日志；发动机数量取原著 12,000 台；比邻星按电影取 4.2 光年，巡航速度 0.221% c，使速度积分与距离一致（`tools/year_check.mjs` 校验）。
+- **第一章**：点火从重型阵列向整个半球蔓延；2044 年档案闪回（加蓬外海太空电梯、攀爬舱、方舟号国际空间站）；按电影还原的领航员国际空间站。
+- **木星危机（电影版）**：地球被木星引力突增拽向木星，在洛希极限附近被「钉住」并缓慢下沉；木星把地球大气撕扯成烈焰色、随自转拧成脐带状的气流；三道地面发动机喷流射向气流却差一截够不着；领航员号冲进喷流顶端，在两星夹缝中点燃混合气，火焰沿气流烧向木星、引爆木星大气，火焰冲击波扫过地球并把它推开（`src/fx/ignition.js`，镜头 52–60 s）。
+- **太阳系**：衰老的太阳（米粒组织、黑子、日珥、日冕物质抛射）、土星环影、冥王星（JPL 轨道根数 + 新视野号贴图）、地球外旋航迹。
+- **外太阳系与星际**：终端激波、日球层顶、弓形激波（仅镜头 14 出现）与极光、冰封地球的地下城灯网。
+- **银河**：HYG 星表 100 光年内近邻恒星（`src/data/near-stars.js`）、对数尺度连续拉远到 36 万粒子的棒旋银河、太阳定位环。
+- **贴图与性能**：8K 贴图改用 KTX2（UASTC + Zstd）并自动回退 JPG；等离子光柱改为单次 draw call 的实例化条带（`src/fx/plumes.js`）。
+- **仪表盘与字体**：HUD 重新排版，中文字体按实际文本裁剪子集（`npm run font`）。
+- **开发工具**：定格截图、冒烟测试、星表生成、年份一致性检查等 Node 脚本（`tools/`）。
 
 ## 运行
 
@@ -43,7 +77,7 @@ npm run preview    # 本地预览打包结果
 | # | 章节 | 内容 |
 | --- | --- | --- |
 | 01 | 流浪地球 | 2058 年，点火从重型阵列开始向整个半球蔓延；2044 年档案闪回：加蓬外海的太空电梯，攀爬舱升到同步轨道；方舟号国际空间站（同步轨道船坞，在建，2044 年坠毁）；领航员国际空间站（2048 年起建造，单座，按电影还原） |
-| 02 | 太阳系 | 2058—2078：时间压缩下的太阳系俯瞰与地球外旋航迹（原著 15 圈，画 3.5 圈）；衰老的太阳（米粒组织、黑子、日珥、日冕物质抛射）；2075 木星引力危机：跟拍地球以约 1.5 倍木星半径（洛希极限附近）掠过木星、航迹弯折后回望（5,000 余座发动机停机，光柱熄灭近半；领航员号仅文字交代）；土星（与地球分开构图，含环影）；冥王星；2078 叛乱与太阳氦闪 |
+| 02 | 太阳系 | 2058—2078：时间压缩下的太阳系俯瞰与地球外旋航迹（原著 15 圈，画 3.5 圈）；衰老的太阳（米粒组织、黑子、日珥、日冕物质抛射）；2075 木星引力危机：地球被木星拽住、困在洛希极限附近（5,000 余座发动机停机），大气被撕成烈焰色气流，领航员号冲进发动机喷流点燃木星，冲击波把地球推开；土星（与地球分开构图，含环影）；冥王星；2078 叛乱与太阳氦闪 |
 | 03 | 超越外行星 | 2080—2105，12 → 120 AU（约 20 km/s）：海王星；柯伊伯带冰屑；终端激波（约 87 AU）；越过日球层顶（约 120 AU） |
 | 04 | 星际航行 | 2105—2605 加速到 0.221% c（约 663 km/s；原著加速期自飞离木星、约 2077 年起）：冰封的地球与地下城灯网；弓形激波与极光；渐亮的比邻星 |
 | 05 | 银河系 | 2605—3905 发动机关闭滑行 1300 年；对数尺度连续拉远：太阳—比邻星航线 → 本地泡 → 猎户臂 → 36 万粒子的棒旋银河 |
@@ -70,6 +104,8 @@ src/fx/plumes.js        等离子光柱：沿轴朝向相机的实例化条带�
 src/fx/kit.js           硬表面拼装建模（舰船、空间站、攀爬舱、桁架）
 src/fx/shaders.js       地球、云、大气、行星、光晕等着色器
 src/fx/space.js         银河天空、星点、速度流线、冰屑
+src/fx/ignition.js      木星危机：脐带气流、发动机喷流、点火、木星大气燃烧、火焰冲击波、镜头抖动
+src/fx/triplanar.js     三向投影 PBR（移植自上游 js/fx/triplanar.js）
 public/assets/          贴图（JPG + 8K 的 KTX2）、basis 转码器、字体
 tools/                  开发工具（全部 Node）：截图 shots.mjs、冒烟测试 smoke.mjs、字体子集化 subset-font.mjs、星表生成 near-stars.mjs
 tools/fonts/            完整的 Noto Sans SC 可变字重源文件（只供裁剪，不进打包产物）
@@ -97,17 +133,46 @@ basisu -uastc -uastc_level 2 -mipmap -y_flip -linear -ktx2 earth_clouds.jpg
 
 ## 素材来源与授权
 
+- **上游代码**：[oxomkbk/earth-migration](https://github.com/oxomkbk/earth-migration)，MIT License，Copyright (c) 2026 玛卡巴卡。本项目中源自上游的部分继续受其 MIT 许可约束，其版权与许可声明见下方「许可证」
 - 行星、太阳、地球昼/夜/云/法线/镜面贴图：Solar System Scope（solarsystemscope.com/textures），CC BY 4.0，经由 Wikimedia Commons 获取
 - 银河全景：ESO / S. Brunier，“The Milky Way panorama”，CC BY 4.0
-- 冥王星：轨道根数 a 39.48 AU、e 0.2488、i 17.16°、Ω 110.3°、ω 113.8°（JPL 近似值）；贴图 `pluto.jpg` 为新视野号全球彩色拼接图（缩至 2048×1024），NASA/JHUAPL/SwRI，public domain，来源 https://commons.wikimedia.org/wiki/File:Pluto_color_mapmosaic.jpg（原图 https://upload.wikimedia.org/wikipedia/commons/a/ad/Pluto_color_mapmosaic.jpg）
-- 近邻恒星：HYG 星表 v4.4（David Nash / astronexus，codeberg.org/astronexus/hyg），CC BY-SA 4.0；src/data/near-stars.js 为其衍生数据，同样以 CC BY-SA 4.0 提供
+- 冥王星：轨道根数 a 39.48 AU、e 0.2488、i 17.16°、Ω 110.3°、ω 113.8°（JPL 近似值）；贴图 `pluto.jpg` 为新视野号全球彩色拼接图（缩至 2048×1024），NASA/JHUAPL/SwRI，public domain，来源 https://commons.wikimedia.org/wiki/File:Pluto_color_mapmosaic.jpg
+- 近邻恒星：HYG 星表 v4.4（David Nash / astronexus，codeberg.org/astronexus/hyg），CC BY-SA 4.0；`src/data/near-stars.js` 为其衍生数据，同样以 CC BY-SA 4.0 提供
+- PBR 金属贴图：Poly Haven（metal_plate_02、painted_metal_shutter、blue_metal_plate），CC0
 - 字体：Orbitron、Rajdhani、JetBrains Mono、Noto Sans SC（均为 SIL Open Font License 1.1）
-- 舰船、空间站、发动机、银河系全部为程序化生成；配乐为程序实时合成
-- 代码：MIT
+- 舰船、空间站、发动机、银河系为程序化生成；配乐为程序实时合成
 
-本作品是受《流浪地球》启发的同人创作，与电影出品方及版权方无关。
+## 许可证
 
+本项目代码以 MIT License 发布（见 `LICENSE`）。
 
-## 方舟号站体
+源自上游的部分保留原版权声明：
 
-站体造型参考 oxomkbk/earth-migration（MIT）的同步轨道站；三向投影 PBR 着色移植自同项目 `js/fx/triplanar.js`。贴图 `public/assets/tex/pbr/` 来自 Poly Haven（metal_plate_02、painted_metal_shutter、blue_metal_plate），CC0。
+```
+MIT License
+
+Copyright (c) 2026 玛卡巴卡
+https://github.com/oxomkbk/earth-migration
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## 声明
+
+本作品是受电影《流浪地球》及刘慈欣同名小说启发的非官方同人创作，与电影出品方、原著及其版权方无关；与上游项目作者亦无隶属关系。
