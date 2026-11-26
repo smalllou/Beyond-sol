@@ -359,6 +359,7 @@ export class EarthWorld {
       const mesh = new THREE.Mesh(g, m); return mesh;
     };
     this.auroraN = aur(0.93); this.auroraS = aur(-0.93); this.auroraS.rotation.x = Math.PI;
+    this.auroraN.visible = this.auroraS.visible = false;   // 流浪途中没有太阳风，不出现极光
     this.earth.add(this.auroraN, this.auroraS);
     // 日球层顶（一张起伏的薄幕）
     const hg = new THREE.PlaneGeometry(60, 60, 1, 1);
@@ -713,7 +714,7 @@ export class EarthWorld {
     this.bow.visible = t >= 106.6 && t < 116;
     this.bowMat.uniforms.uTime.value = clock; this.bowMat.uniforms.uOp.value = sstep(106.6, 108.6, t) * (1 - sstep(114.0, 116.0, t)) * 0.13;
     this.bow.position.copy(FWD).multiplyScalar(0.2); this.bow.lookAt(FWD.clone().multiplyScalar(5)); this.bow.rotateX(Math.PI / 2);   // 激波顶点在正前方约 1.5 个地球半径，开口朝后
-    for (const a of [this.auroraN, this.auroraS]) { a.material.uniforms.uTime.value = clock; a.material.uniforms.uOp.value = ch === 4 ? 0.35 : ch === 3 ? 0.15 : 0; }
+    // 极光已关闭：地球离开太阳后没有太阳风，不会再有极光
     this.helio.visible = t >= 86 && t < 96.4;
     if (this.helio.visible) { const u = (t - 86) / 10.4; this.helio.position.copy(FWD).multiplyScalar(lerp(6.3, -4.2, u)); this.helio.lookAt(FWD.clone().multiplyScalar(30)); this.helioMat.uniforms.uTime.value = clock; this.helioMat.uniforms.uOp.value = Math.sin(Math.min(1, u * 1.1) * Math.PI) * 0.9; }
     // 天空
